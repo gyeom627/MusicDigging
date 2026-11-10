@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}디깅{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>오늘의 디깅</h1>
+  <p class="sub">카테고리를 고르고, 원하면 듣고 싶은 무드를 문장으로 적어 보세요. 제목과 아티스트는 매수한 뒤에 공개됩니다.</p>
+  <form id="dig-form" onsubmit="return false">
+    <div class="chips">
+      <label><input type="radio" name="category" value="ALL" checked> 전체</label>
+      {% for code, name in categories.items() %}
+        <label><input type="radio" name="category" value="{{ code }}"> {{ name }}</label>
+      {% endfor %}
+    </div>
+    <input name="mood" maxlength="100" placeholder="예: 밤에 산책할 때 듣기 좋은 노래 (선택)">
+    <button type="button" disabled>디깅 시작 (다음 단계에서 구현)</button>
+  </form>
+  <p class="sub">남은 매수권: <strong>{{ tickets_left }}</strong> / {{ daily_limit }}장</p>
+</section>
+{% endblock %}

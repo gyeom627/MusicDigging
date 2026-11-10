@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}로그인{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>로그인</h1>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>아이디 <input name="username" value="{{ username }}" required autocomplete="username"></label>
+    <label>비밀번호 <input name="password" type="password" required autocomplete="current-password"></label>
+    <button type="submit">로그인</button>
+  </form>
+  <p class="sub">처음이라면 <a href="{{ url_for('signup') }}">가입하기</a></p>
+</section>
+{% endblock %}

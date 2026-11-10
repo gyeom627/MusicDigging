@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}관리자{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>관리자</h1>
+  <table class="stats">
+    <tr><th>가입자</th><td>{{ stats.users }}</td></tr>
+    <tr><th>디깅 풀(ACTIVE)</th><td>{{ stats.music }}</td></tr>
+    <tr><th>검토 대기(REVIEW)</th><td>{{ stats.review }}</td></tr>
+    <tr><th>고정 태그</th><td>{{ stats.tags }} / 100</td></tr>
+  </table>
+  <p class="sub">곡 등록·검토 승인·태그 수정·AI 채택률은 다음 단계에서 추가합니다.</p>
+</section>
+{% endblock %}

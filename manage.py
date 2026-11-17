@@ -5,6 +5,8 @@
   python manage.py reset-passes 아이디   그 계정이 넘긴 곡을 다시 나오게 (매수 기록은 그대로)
   python manage.py pool-status [아이디]  디깅 풀 상태 (곡 수·숨김 수, 아이디를 주면 넘긴·매수한 곡 수)
   python manage.py restore-errors      재생 오류로 자동 숨김된 곡을 다시 공개 (오류 보고 기록도 비움)
+  python manage.py list-users          가입된 계정 목록 (아이디·닉네임·권한)
+  python manage.py set-password 아이디   비밀번호 다시 정하기 (화면에 보이지 않게 입력)
 """
 import getpass
 import sqlite3
@@ -52,7 +54,10 @@ def reset_passes(username):
 def pool_status(username=None):
     conn = get_db_connection()
     try:
-        for status, n in conn.execute("SELECT status, COUNT(*) FROM music GROUP BY status"):
+        rows = conn.execute("SELECT status, COUNT(*) FROM music GROUP BY status").fetchall()
+        if not rows:
+            print("곡: 0개 — 디깅 풀이 비어 있습니다. python scripts/seed_songs.py 로 시드 곡을 넣으세요.")
+        for status, n in rows:
             print(f"곡 {status}: {n}")
         n = conn.execute("SELECT COUNT(*) FROM music WHERE status = 'HIDDEN' AND error_count >= ?",
                          (config.AUTO_HIDE_ERRORS,)).fetchone()[0]
@@ -64,6 +69,35 @@ def pool_status(username=None):
             for label, table in (("넘긴 곡", "passes"), ("매수한 곡", "purchases"), ("오류 보고", "error_reports")):
                 c = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE user_id = ?", (row[0],)).fetchone()[0]
                 print(f"{username} {label}: {c}")
+    finally:
+        conn.close()
+
+
+def list_users():
+    conn = get_db_connection()
+    try:
+        rows = conn.execute("SELECT username, nickname, role, created_at FROM users ORDER BY id").fetchall()
+        print(f"DB: {config.DATABASE}\n계정 {len(rows)}개")
+        for u in rows:
+            print(f"  {u[0]:<20} {u[1]:<12} {u[2]:<5} {u[3]}")
+    finally:
+        conn.close()
+
+
+def set_password(username):
+    username = username.strip().lower()
+    conn = get_db_connection()
+    try:
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone() is None:
+            sys.exit(f"{username} 계정을 찾을 수 없습니다. python manage.py list-users 로 아이디를 확인하세요.")
+        password = getpass.getpass("새 비밀번호(8자 이상): ")
+        if len(password) < 8:
+            sys.exit("비밀번호는 8자 이상이어야 합니다.")
+        if getpass.getpass("한 번 더: ") != password:
+            sys.exit("두 비밀번호가 다릅니다.")
+        conn.execute("UPDATE users SET password_hash = ? WHERE username = ?", (generate_password_hash(password), username))
+        conn.commit()
+        print(f"{username} 비밀번호를 바꿨습니다.")
     finally:
         conn.close()
 
@@ -93,5 +127,9 @@ if __name__ == "__main__":
         pool_status(sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "restore-errors":
         restore_errors()
+    elif cmd == "list-users":
+        list_users()
+    elif cmd == "set-password" and len(sys.argv) > 2:
+        set_password(sys.argv[2])
     else:
         print(__doc__)

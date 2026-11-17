@@ -63,8 +63,9 @@
         <p class="empty-title" id="empty-title">이 카테고리의 곡을 모두 들었어요</p>
         <p class="empty-body" id="empty-body"></p>
         <div class="empty-actions">
+          <button type="button" class="move buy wide" id="btn-reset" hidden>넘긴 곡 다시 듣기</button>
           <button type="button" class="move pass" id="btn-to-all">전체에서 디깅하기</button>
-          <a class="move buy" href="{{ url_for('submit') }}">새 곡 제보하기</a>
+          <a class="move pass" href="{{ url_for('submit') }}">새 곡 제보하기</a>
         </div>
       </div>
     </div>

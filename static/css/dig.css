@@ -151,7 +151,8 @@
 .empty { padding: 28px 6px 8px; text-align: center; }
 .empty-title { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
 .empty-body { color: var(--sub); margin: 0 0 18px; font-size: 14px; }
-.empty-actions { display: flex; gap: 10px; }
+.empty-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.empty-actions .move.wide { flex-basis: 100%; }
 .empty-actions .move { flex: 1; font-size: 15px; padding: 14px 10px; white-space: nowrap; }
 .empty-actions a.move { text-decoration: none; }
 .booth-legal { text-align: center; font-size: 11px; color: var(--sub); margin: 18px 0 0; }

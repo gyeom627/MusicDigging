@@ -167,7 +167,7 @@
     if (d.empty) {
       state.phase = "empty"; state.song = null;
       if (playerReady) player.stopVideo();
-      showEmpty();
+      showEmpty(d.stats || {});
       return;
     }
     present(d, false);
@@ -193,7 +193,7 @@
     load();
   }
 
-  function showEmpty() {
+  function showEmpty(st) {
     $("booth").dataset.group = "none";
     $("stage").hidden = true;            // 재생을 멈춘 뒤에만 숨긴다
     $("song").hidden = true;
@@ -202,10 +202,18 @@
     $("btn-sound").hidden = true;
     const all = state.category === "ALL";
     $("cat-tag").textContent = all ? "전체" : (CAT_NAME[state.category] || state.category);
-    $("empty-title").textContent = all ? "디깅 풀의 곡을 모두 들었어요" : "이 카테고리의 곡을 모두 들었어요";
-    $("empty-body").textContent = all
-      ? "새 곡이 등록되면 다시 디깅할 수 있어요. 알고 있는 숨은 곡을 제보해 주세요."
-      : "다른 카테고리나 전체에서 계속 디깅할 수 있어요.";
+    const passed = st.passed || 0, bought = st.bought || 0;
+    state.passedCount = passed;
+    if (st.active === 0) {          // 들은 게 아니라 풀 자체가 비어 있음
+      $("empty-title").textContent = all ? "디깅 풀에 아직 곡이 없어요" : "이 카테고리에는 아직 곡이 없어요";
+      $("empty-body").textContent = "곡이 등록되면 바로 디깅할 수 있어요. 알고 있는 숨은 곡을 제보해 주세요.";
+    } else {
+      $("empty-title").textContent = all ? "디깅 풀의 곡을 모두 들었어요" : "이 카테고리의 곡을 모두 들었어요";
+      $("empty-body").textContent = "넘긴 곡 " + passed + "곡, 매수한 곡 " + bought + "곡이에요. "
+        + (passed > 0 ? "넘긴 곡은 처음부터 다시 들을 수 있어요." : "새 곡이 등록되면 다시 디깅할 수 있어요.");
+    }
+    $("btn-reset").hidden = passed === 0;
+    $("btn-reset").textContent = "넘긴 곡 " + passed + "곡 다시 듣기";
     $("btn-to-all").hidden = all;
   }
 
@@ -270,12 +278,34 @@
     next({ skipPass: true, fresh: true });  // 카테고리를 바꾼 것은 곡을 평가한 것이 아니므로 패스로 기록하지 않음
   }
 
-  async function reportError() {
+  async function resetPasses() {  // 넘긴 곡을 다시 풀에 넣고 바로 디깅 (매수한 곡은 그대로 빠져 있음)
+    if (state.busy) return;
+    state.busy = true;
+    const d = await api("/api/dig/reset", { category: state.category });
+    state.busy = false;
+    if (!d.ok) { say(d.error || "다시 듣기를 준비하지 못했습니다.", true); return; }
+    await next({ skipPass: true, fresh: true });
+    if (state.phase === "listening") say("넘긴 곡 " + d.restored + "곡을 다시 디깅 풀에 넣었어요.");
+  }
+
+  // 재생 오류. 영상 자체 문제(100 삭제·비공개, 101·150 퍼가기 금지)만 서버에 보고하고 다음 곡으로.
+  // 그 밖의 오류(2·5·153 등)는 브라우저·네트워크 쪽 문제일 수 있어 보고하지 않는다.
+  // 영상 문제가 연달아 나면 학교·회사 망에서 YouTube가 제한된 것일 수 있으니 멈추고 알린다
+  const VIDEO_ERRORS = [100, 101, 150];
+  let errorStreak = 0;
+  async function onPlayerError(code) {
     if (state.phase !== "listening") return;
+    if (!VIDEO_ERRORS.includes(code) || errorStreak >= 2) {
+      say("이 영상을 지금 재생하지 못했어요 (오류 " + code + "). "
+        + (errorStreak >= 2 ? "여러 곡이 연달아 재생되지 않아요. 지금 쓰는 인터넷에서 YouTube가 제한됐을 수 있어요. " : "")
+        + "위로 밀면 다음 곡으로 넘어가요.", true);
+      return;
+    }
+    errorStreak += 1;
     await api("/api/dig/error");
     state.phase = "loading";
-    say("재생할 수 없는 영상이라 다음 곡으로 넘어갑니다.");
-    next({ skipPass: true });
+    await next({ skipPass: true });
+    if (state.phase === "listening") say("재생할 수 없는 영상이라 다음 곡으로 넘어왔어요.");
   }
 
   // ---------- YouTube 플레이어 ----------
@@ -286,12 +316,13 @@
       events: {
         onReady: () => {
           playerReady = true;
-          if (!state.activated) { player.mute(); $("btn-sound").hidden = false; }
+          if (!state.activated) { player.mute(); $("btn-sound").hidden = state.phase === "empty"; }
           if (pendingLoad) { player.loadVideoById(pendingLoad); pendingLoad = null; }
           pollId = setInterval(tick, 250);
         },
-        onError: () => reportError(),
+        onError: (e) => onPlayerError(e.data),
         onStateChange: (e) => {
+          if (e.data === YT.PlayerState.PLAYING) errorStreak = 0;  // 한 곡이라도 재생되면 정상
           if (e.data === YT.PlayerState.ENDED && state.phase === "listening") {
             say("미리듣기가 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
           }
@@ -365,6 +396,7 @@
   $("btn-buy").addEventListener("click", buy);
   $("btn-sound").addEventListener("click", activate);
   $("btn-to-all").addEventListener("click", () => setCategory("ALL"));
+  $("btn-reset").addEventListener("click", resetPasses);
   document.querySelectorAll(".cat").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
   document.querySelectorAll(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 

@@ -203,6 +203,36 @@ class DigTest(unittest.TestCase):
         conn.commit(); conn.close()
         self.assertTrue(post(c, "/api/dig/prev").get_json()["none"])
 
+    def test_empty_explains_why_and_reset_brings_passed_back(self):
+        new_song(); new_song()
+        c = client_for(new_user("reset_u"))
+        post(c, "/api/dig/next"); post(c, "/api/dig/pass")
+        post(c, "/api/dig/next"); post(c, "/api/dig/buy")
+        d = post(c, "/api/dig/next").get_json()
+        self.assertTrue(d["empty"])
+        self.assertEqual(d["stats"], {"active": 2, "passed": 1, "bought": 1})
+        self.assertEqual(post(c, "/api/dig/reset").get_json()["restored"], 1)
+        again = post(c, "/api/dig/next").get_json()
+        self.assertFalse(again["empty"])  # 넘긴 곡이 다시 나옴 (매수한 곡은 그대로 빠짐)
+        post(c, "/api/dig/pass")
+        self.assertTrue(post(c, "/api/dig/next").get_json()["empty"])
+
+    def test_empty_pool_has_zero_active(self):
+        c = client_for(new_user("nopool_u"))
+        d = post(c, "/api/dig/next").get_json()
+        self.assertEqual(d["stats"]["active"], 0)
+
+    def test_same_user_error_counts_once(self):
+        mid = new_song()
+        c = client_for(new_user("err_once_u"))
+        post(c, "/api/dig/next"); post(c, "/api/dig/error")
+        post(c, "/api/dig/reset")  # 넘긴 곡을 다시 들으며
+        post(c, "/api/dig/next"); post(c, "/api/dig/error")  # 같은 곡을 또 보고해도
+        conn = db.get_db_connection()
+        n = conn.execute("SELECT error_count FROM music WHERE id = ?", (mid,)).fetchone()[0]
+        conn.close()
+        self.assertEqual(n, 1)  # 한 사람은 한 번만 셈
+
 
 if __name__ == "__main__":
     unittest.main()

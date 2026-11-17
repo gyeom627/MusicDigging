@@ -80,6 +80,19 @@ def _step(db, uid, tl, pos, direction):
     return None
 
 
+def _pool_stats(db, uid, category):
+    """풀이 빈 이유를 알려 주기 위한 숫자: 들을 수 있는 곡, 내가 넘긴 곡, 내가 매수한 곡"""
+    cat_sql, params = ("", []) if category == "ALL" else (" AND m.category = ?", [category])
+    one = lambda sql, *a: db.execute(sql + cat_sql, (*a, *params)).fetchone()[0]  # noqa: E731
+    return dict(
+        active=one("SELECT COUNT(*) FROM music m WHERE m.status = 'ACTIVE'"),
+        passed=one("SELECT COUNT(*) FROM passes s JOIN music m ON m.id = s.music_id "
+                   "WHERE s.user_id = ? AND m.status = 'ACTIVE'", uid),
+        bought=one("SELECT COUNT(*) FROM purchases p JOIN music m ON m.id = p.music_id "
+                   "WHERE p.user_id = ? AND m.status = 'ACTIVE'", uid),
+    )
+
+
 @bp.post("/api/dig/next")
 @login_required
 def dig_next():
@@ -109,7 +122,8 @@ def dig_next():
     if not candidates:
         session.pop("dig_current", None)
         _save_timeline(tl, len(tl))  # '끝' 위치: 이전 곡을 누르면 마지막에 들은 곡으로
-        return jsonify(ok=True, empty=True, tickets_left=scoring.tickets_left(db, uid))
+        return jsonify(ok=True, empty=True, tickets_left=scoring.tickets_left(db, uid),
+                       stats=_pool_stats(db, uid, category))
     pick = _rng.choice(candidates)
     tl.append(pick)
     _save_timeline(tl, len(tl) - 1)
@@ -125,6 +139,25 @@ def dig_prev():
     if payload is None:
         return jsonify(ok=True, none=True)
     return jsonify(payload)
+
+
+@bp.post("/api/dig/reset")
+@login_required
+def dig_reset():
+    """넘긴 곡을 다시 디깅 풀로. 매수 기록은 그대로 둔다 (카테고리를 고르면 그 카테고리만)"""
+    data = request.get_json(silent=True) or {}
+    category = data.get("category", "ALL")
+    if category != "ALL" and category not in config.CATEGORIES:
+        return _fail("카테고리가 올바르지 않습니다.", 400)
+    db, uid = get_db(), g.user["id"]
+    if category == "ALL":
+        n = db.execute("DELETE FROM passes WHERE user_id = ?", (uid,)).rowcount
+    else:
+        n = db.execute("DELETE FROM passes WHERE user_id = ? AND music_id IN "
+                       "(SELECT id FROM music WHERE category = ?)", (uid, category)).rowcount
+    db.commit()
+    session.pop("dig_current", None)
+    return jsonify(ok=True, restored=n)
 
 
 @bp.post("/api/dig/buy")
@@ -183,15 +216,18 @@ def dig_pass():
 @bp.post("/api/dig/error")
 @login_required
 def dig_error():
-    """재생 오류 보고. 같은 사용자는 같은 곡을 한 번만 보고하게 되므로(패스로 기록) 3명이 보고해야 숨겨진다"""
+    """재생 오류 보고. 영상 자체 문제(삭제·비공개·퍼가기 금지)일 때만 브라우저가 보낸다.
+    한 사람은 한 곡에 한 번만 센다(error_reports). 서로 다른 3명이 보고해야 숨겨진다"""
     mid = session.pop("dig_current", None)
     if not mid:
         return _fail("지금 듣는 곡이 없습니다.")
     db, uid = get_db(), g.user["id"]
     db.execute("INSERT OR IGNORE INTO passes (user_id, music_id) VALUES (?, ?)", (uid, mid))
-    db.execute("UPDATE music SET error_count = error_count + 1, "
-               "status = CASE WHEN error_count + 1 >= ? THEN 'HIDDEN' ELSE status END WHERE id = ?",
-               (config.AUTO_HIDE_ERRORS, mid))
+    first = db.execute("INSERT OR IGNORE INTO error_reports (user_id, music_id) VALUES (?, ?)", (uid, mid)).rowcount
+    if first:
+        db.execute("UPDATE music SET error_count = error_count + 1, "
+                   "status = CASE WHEN error_count + 1 >= ? THEN 'HIDDEN' ELSE status END WHERE id = ?",
+                   (config.AUTO_HIDE_ERRORS, mid))
     db.commit()
     tl, pos = _timeline()  # 재생되지 않는 곡은 이전 곡 목록에서도 뺀다
     if 0 <= pos < len(tl) and tl[pos] == mid:

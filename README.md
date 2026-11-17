@@ -18,6 +18,8 @@ copy .env.example .env            :: 메모장으로 열어 값 채우기 (FLASK
 python manage.py init-db          :: 테이블 + 태그 100개
 python manage.py create-admin     :: 관리자 계정
 python manage.py reset-passes 아이디   :: 테스트로 넘긴 곡을 다시 나오게
+python manage.py pool-status [아이디]  :: 디깅 풀 상태 확인
+python manage.py restore-errors      :: 재생 오류로 숨겨진 곡 다시 공개
 python scripts\seed_songs.py      :: 시드 곡 넣기 (data/seed_songs.csv, 여러 번 실행해도 안전)
 python -m unittest discover tests -v
 python app.py                     :: http://127.0.0.1:5000
@@ -42,7 +44,7 @@ python app.py                     :: http://127.0.0.1:5000
 ```
 app.py          라우트, 로그인·권한·CSRF
 db.py           get_db_connection(), init_db()
-schema.sql      테이블 11개
+schema.sql      테이블 12개 (12주차에 error_reports 추가)
 config.py       정책 상수(매수권 10, 조회수 100만 등), .env 로드
 tag_rules.py    고정 태그 100개, Gemini JSON 스키마·프롬프트, 응답 검증, 무드 매칭 점수
 scoring.py      매수권(한국 시간 자정 초기화) — 포인트·랭킹·뱃지 추가 예정
@@ -50,7 +52,7 @@ dig.py          디깅 API: /api/dig/next·buy·pass·error
 music.py        곡 저장·태그 조회·정규화(중복 판정)
 guards.py       로그인·관리자 데코레이터
 data/           seed_songs.csv (검증 때 확정한 태그)
-manage.py       init-db, create-admin, reset-passes
+manage.py       init-db, create-admin, reset-passes, pool-status, restore-errors
 scripts/        check_apis.py (서버에서 외부 API 연결 점검)
 tests/          test_smoke.py, test_dig.py (동시 매수·매수권 초과·블라인드 등)
 ```

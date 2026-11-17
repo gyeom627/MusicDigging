@@ -31,6 +31,8 @@ app.teardown_appcontext(close_db)
 
 from dig import bp as dig_bp  # noqa: E402  (app 설정 뒤에 등록)
 app.register_blueprint(dig_bp)
+from mood import bp as mood_bp  # noqa: E402
+app.register_blueprint(mood_bp)
 
 
 # ---------------- 로그인 사용자 / 권한 ----------------
@@ -144,7 +146,7 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    return render_template("index.html", categories=config.CATEGORIES)
+    return render_template("index.html", categories=config.CATEGORIES, mood_max=config.MOOD_TEXT_MAX)
 
 
 def placeholder(title, desc):

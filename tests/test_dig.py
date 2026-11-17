@@ -13,7 +13,9 @@ os.environ.setdefault("DIGGER_DB", os.path.join(tempfile.mkdtemp(), "test.db"))
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config  # noqa: E402
 import db  # noqa: E402
+import gemini_service  # noqa: E402
 import music  # noqa: E402
 from app import app  # noqa: E402
 
@@ -252,6 +254,91 @@ class DigTest(unittest.TestCase):
         d = post(c, "/api/dig/next", {"genres": ["록"], "fresh": True}).get_json()
         self.assertEqual(d["video_id"], "filt0000002")
         self.assertEqual(post(c, "/api/dig/next", {"moods": ["없는무드"]}).status_code, 400)
+
+
+class MoodTest(unittest.TestCase):
+    """무드 문장 디깅: Gemini 응답은 가짜로 바꿔 끼워, 캐시·제한·검증·점수 추첨만 확인한다"""
+    @classmethod
+    def setUpClass(cls):
+        db.init_db()
+
+    def setUp(self):
+        hide_all_songs()
+        self.calls = []
+        self._real = gemini_service._call_mood_model
+        self.reply = '{"moods": ["잔잔한"], "situations": ["산책"], "times": ["밤"], "instruments": [], ' \
+                     '"subgenres": [], "energy": "없음", "genre": "없음"}'
+
+        def fake(text):
+            self.calls.append(text)
+            return {"raw": self.reply, "seconds": 0.1, "in_tok": 10, "out_tok": 5, "error": ""}
+        gemini_service._call_mood_model = fake
+
+    def tearDown(self):
+        gemini_service._call_mood_model = self._real
+
+    def song(self, vid, moods, genre="록", times=(), situations=()):
+        conn = db.get_db_connection()
+        mid = music.insert_song(conn, video_id=vid, title=vid, artist="A", category="KR", start_sec=0,
+                                tags={"moods": moods, "genre": genre, "subgenres": [], "instruments": [],
+                                      "times": list(times), "situations": list(situations)})
+        conn.commit(); conn.close()
+        return mid
+
+    def test_interpret_caches_and_validates(self):
+        c = client_for(new_user("mood_cache_u"))
+        self.reply = '{"moods": ["잔잔한", "없는무드"], "situations": [], "times": ["밤"], "instruments": [], ' \
+                     '"subgenres": [], "energy": "없음", "genre": "없음"}'
+        d = post(c, "/api/mood/interpret", {"text": "밤에  듣는 잔잔한 노래"}).get_json()
+        self.assertTrue(d["ok"]); self.assertFalse(d["cached"])
+        self.assertEqual(d["tags"]["moods"], ["잔잔한"])  # 목록 밖 값은 버림
+        self.assertEqual([x["text"] for x in d["labels"]], ["잔잔한", "밤"])
+        self.assertEqual(d["labels"][0]["g"], "차분한")
+        d2 = post(c, "/api/mood/interpret", {"text": "밤에 듣는 잔잔한 노래 "}).get_json()  # 공백만 다른 문장
+        self.assertTrue(d2["cached"])
+        self.assertEqual(len(self.calls), 1)  # Gemini는 한 번만
+
+    def test_failure_does_not_break(self):
+        gemini_service._call_mood_model = lambda t: {"raw": "", "seconds": 1, "in_tok": None, "out_tok": None,
+                                                     "error": "TimeoutError"}
+        c = client_for(new_user("mood_fail_u"))
+        r = post(c, "/api/mood/interpret", {"text": "아무 문장 실패용"})
+        self.assertEqual(r.status_code, 503)
+        self.assertIn("직접", r.get_json()["error"])
+        self.assertEqual(post(c, "/api/dig/next", {"mood_text": "아무 문장 실패용"}).status_code, 400)  # 캐시 없음
+
+    def test_daily_limit_counts_only_real_calls(self):
+        c = client_for(new_user("mood_limit_u"))
+        old, config.DAILY_MOOD_LIMIT = config.DAILY_MOOD_LIMIT, 2
+        try:
+            for i in range(2):
+                self.assertTrue(post(c, "/api/mood/interpret", {"text": f"제한 확인 문장 {i}"}).get_json()["ok"])
+            self.assertTrue(post(c, "/api/mood/interpret", {"text": "제한 확인 문장 0"}).get_json()["cached"])
+            self.assertEqual(post(c, "/api/mood/interpret", {"text": "제한 확인 새 문장"}).status_code, 429)
+        finally:
+            config.DAILY_MOOD_LIMIT = old
+
+    def test_too_long_or_empty(self):
+        c = client_for(new_user("mood_len_u"))
+        self.assertEqual(post(c, "/api/mood/interpret", {"text": "가" * 101}).status_code, 400)
+        self.assertEqual(post(c, "/api/mood/interpret", {"text": "  "}).status_code, 400)
+
+    def test_dig_picks_from_top_half(self):
+        self.song("moodbest001", ["잔잔한"], times=["밤"], situations=["산책"])  # 3+2+2 = 7점
+        self.song("moodlow0001", ["강렬한"])                                               # 0점
+        c = client_for(new_user("mood_pick_u"))
+        post(c, "/api/mood/interpret", {"text": "밤에 산책할 때 잔잔한"})
+        d = post(c, "/api/dig/next", {"mood_text": "밤에 산책할 때 잔잔한"}).get_json()
+        self.assertEqual(d["video_id"], "moodbest001")  # 0점 곡은 묶음(4점 이상)에 못 들어감
+        self.assertNotIn("mood_fallback", d)
+
+    def test_no_match_falls_back_to_random(self):
+        self.song("moodnone001", ["강렬한"])
+        c = client_for(new_user("mood_none_u"))
+        post(c, "/api/mood/interpret", {"text": "잔잔한 밤 산책 노래"})
+        d = post(c, "/api/dig/next", {"mood_text": "잔잔한 밤 산책 노래"}).get_json()
+        self.assertEqual(d["video_id"], "moodnone001")
+        self.assertTrue(d["mood_fallback"])
 
 
 if __name__ == "__main__":

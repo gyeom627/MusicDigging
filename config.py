@@ -27,6 +27,7 @@ DAILY_SUBMIT_LIMIT = 5        # 1인 하루 제보 곡 수
 DAILY_SUGGEST_LIMIT = 10      # 1인 하루 AI 추천 요청 수
 HIGHLIGHT_SEC = 60            # 하이라이트 구간 길이(진행 바 표시·오디오 분석). 재생은 곡 끝까지
 MOOD_TEXT_MAX = 100           # 무드 문장 최대 글자 수
+DAILY_MOOD_LIMIT = 20         # 1인 하루 무드 문장 AI 해석 횟수 (캐시에 있는 문장은 세지 않음 — 무료 쿼터 보호)
 POST_MAX = 200
 INTRO_MAX = 100
 AUTO_HIDE_ERRORS = 3          # 재생 오류가 이만큼 쌓이면 자동 숨김

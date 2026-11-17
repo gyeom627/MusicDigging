@@ -12,6 +12,7 @@ import sqlite3
 from flask import Blueprint, g, jsonify, request, session
 
 import config
+import mood
 import scoring
 from db import get_db
 from guards import login_required
@@ -153,6 +154,13 @@ def dig_next():
         return _fail("카테고리나 검색 조건이 올바르지 않습니다.", 400)
     category, moods, genres = f
     db, uid = get_db(), g.user["id"]
+    query = None
+    if data.get("mood_text"):  # 무드 문장 디깅: 칩 조건 대신 해석 결과로 점수 추첨 (해석은 캐시에서만 읽는다)
+        hit = mood.cached(db, str(data["mood_text"])[:config.MOOD_TEXT_MAX])
+        if hit is None:
+            return _fail("무드 문장을 먼저 해석해 주세요.", 400)
+        query = hit["tags"] if hit["status"] == "DONE" else None
+        moods, genres = [], []
     tl, pos = _timeline()
     # 이전 곡으로 돌아가 있었다면 먼저 들었던 다음 곡으로 (카테고리를 바꾼 경우는 새로 뽑기)
     if not data.get("fresh") and pos + 1 < len(tl):
@@ -170,10 +178,17 @@ def dig_next():
         _save_timeline(tl, len(tl))  # '끝' 위치: 이전 곡을 누르면 마지막에 들은 곡으로
         return jsonify(ok=True, empty=True, tickets_left=scoring.tickets_left(db, uid),
                        stats=_pool_stats(db, uid, category))
-    pick = _rng.choice(candidates)
+    matched = None
+    if query:
+        pick, matched = mood.pick_by_mood(db, query, candidates, _rng)
+    else:
+        pick = _rng.choice(candidates)
     tl.append(pick)
     _save_timeline(tl, len(tl) - 1)
-    return jsonify(_song_payload(db, uid, pick))
+    payload = _song_payload(db, uid, pick)
+    if matched is False:
+        payload["mood_fallback"] = True  # 문장과 겹치는 곡이 없어 무작위로 골랐음
+    return jsonify(payload)
 
 
 @bp.post("/api/dig/prev")

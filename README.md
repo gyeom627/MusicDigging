@@ -7,6 +7,7 @@ Gemini가 곡의 하이라이트를 직접 듣고 무드 태그를 추천하고,
 - 배포: PythonAnywhere (무료)
 - 11주차: 가입·로그인·권한, 화면 골격, DB 스키마(11개 테이블)·고정 태그 100개, 배포 확인용 `/health`
 - 12주차: 시드 곡 12곡, 디깅 플레이어(블라인드 전체 재생·하이라이트부터/처음부터·이전 곡·무드 서치·매수·패스·재생 오류 보고), 매수 트랜잭션·하루 매수권 10장
+- 12주차 Gemini 연동: 무드 문장 디깅 — 문장을 고정 태그로 해석(캐시·하루 20회 제한·실패 시 칩으로 대체), 최고점 절반 이상 묶음에서 추첨
 
 ## 1. 로컬 실행 (Windows)
 ```
@@ -22,6 +23,7 @@ python manage.py pool-status [아이디]  :: 디깅 풀 상태 확인
 python manage.py restore-errors      :: 재생 오류로 숨겨진 곡 다시 공개
 python manage.py list-users          :: 계정 목록
 python manage.py set-password 아이디   :: 비밀번호 다시 정하기
+python scripts/try_mood.py "문장"   :: 무드 문장 해석을 실제 Gemini로 시험
 python scripts\seed_songs.py      :: 시드 곡 넣기 (data/seed_songs.csv, 여러 번 실행해도 안전)
 python -m unittest discover tests -v
 python app.py                     :: http://127.0.0.1:5000
@@ -50,13 +52,15 @@ schema.sql      테이블 12개 (12주차에 error_reports 추가)
 config.py       정책 상수(매수권 10, 조회수 100만 등), .env 로드
 tag_rules.py    고정 태그 100개, Gemini JSON 스키마·프롬프트, 응답 검증, 무드 매칭 점수
 scoring.py      매수권(한국 시간 자정 초기화) — 포인트·랭킹·뱃지 추가 예정
-dig.py          디깅 API: /api/dig/next·buy·pass·error
+dig.py          디깅 API: /api/dig/next·prev·buy·pass·error·reset·facets
+mood.py         무드 문장 디깅: /api/mood/interpret (캐시 → Gemini → 검증), 점수 추첨
+gemini_service.py  Gemini 호출 (20초 제한, 503만 한 번 재시도, 실패는 FAILED로)
 music.py        곡 저장·태그 조회·정규화(중복 판정)
 guards.py       로그인·관리자 데코레이터
 data/           seed_songs.csv (검증 때 확정한 태그)
 manage.py       init-db, create-admin, reset-passes, pool-status, restore-errors, list-users, set-password
-scripts/        check_apis.py (서버에서 외부 API 연결 점검)
-tests/          test_smoke.py, test_dig.py (동시 매수·매수권 초과·블라인드 등)
+scripts/        check_apis.py (외부 API 연결 점검), seed_songs.py (시드 곡), try_mood.py (무드 해석 시험)
+tests/          test_smoke.py, test_dig.py (동시 매수·매수권 초과·블라인드·이전 곡·무드 서치·무드 문장 해석 등)
 ```
 
 ## 4. 보안 규칙

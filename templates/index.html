@@ -19,6 +19,21 @@
 
   <!-- 무드 서치: 무드·장르를 고르면 그 조건 안에서만 무작위로 디깅. 영상 위가 아니라 카드 위쪽에 펼쳐진다 -->
   <section class="filter-panel" id="filter-panel" hidden aria-label="무드와 장르로 디깅하기">
+    <!-- 무드 문장 디깅 (AI 기능): 문장을 Gemini가 고정 태그로 옮기고, 서버가 그 태그로 점수 추첨 -->
+    <form class="ask" id="mood-form" autocomplete="off">
+      <label class="filter-title" for="mood-text">느낌으로 찾기 <span class="ai-badge">Gemini</span></label>
+      <div class="ask-row">
+        <input id="mood-text" name="text" maxlength="{{ mood_max }}" placeholder="예: 비 오는 밤에 혼자 걷는 느낌" enterkeyhint="search">
+        <button type="submit" class="ask-go" id="mood-go">해석</button>
+      </div>
+      <p class="ask-msg" id="mood-msg" role="status" hidden></p>
+      <div class="ask-result" id="mood-result" hidden>
+        <p class="ask-note" id="mood-note">AI가 이렇게 읽었어요</p>
+        <ul class="ask-chips" id="mood-labels"></ul>
+        <button type="button" class="move buy" id="mood-apply">이 느낌으로 디깅</button>
+      </div>
+    </form>
+    <p class="filter-or"><span>또는 직접 고르기</span></p>
     <div class="filter-head">
       <p class="filter-title">무드</p>
       <p class="filter-hint">여러 개를 고르면 하나라도 맞는 곡이 나와요</p>

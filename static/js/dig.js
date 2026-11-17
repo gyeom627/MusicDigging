@@ -18,8 +18,16 @@
     activated: false,      // 사용자가 한 번이라도 누르면 소리를 켤 수 있음 (브라우저 자동재생 정책)
     busy: false,
     tickets: Number($("tickets-badge") ? $("tickets-badge").textContent : 0),
-    filter: loadFilter(),  // 무드 서치 조건 { moods: [], genres: [] }
+    filter: loadFilter(),  // 무드 서치 칩 조건 { moods: [], genres: [] }
+    query: loadQuery(),    // 무드 문장 디깅 { text, labels } (AI 해석). 칩 조건과 동시에 쓰지 않는다
   };
+
+  function loadQuery() {
+    try {
+      const q = JSON.parse(store.get("digger.query", "null"));
+      return q && typeof q.text === "string" && Array.isArray(q.labels) ? q : null;
+    } catch (e) { return null; }
+  }
 
   function loadFilter() {
     try {
@@ -28,6 +36,7 @@
     } catch (e) { return { moods: [], genres: [] }; }
   }
   const filterOn = (f) => f.moods.length + f.genres.length > 0;
+  const searchOn = () => filterOn(state.filter) || !!state.query;
   let player = null, playerReady = false, pendingLoad = null, pollId = null;
 
   // ---------- 서버 ----------
@@ -105,7 +114,7 @@
 
   function renderSong(d) {
     $("booth").dataset.group = d.mood_groups[0] || "none";
-    $("cat-tag").textContent = catLabel(d.category);
+    paintCatTag(d.category);
     $("scrub-fill").style.width = "0";
     $("t-now").textContent = "0:00";
     const ul = $("moods");
@@ -128,10 +137,18 @@
   }
 
   function catLabel(cat) {  // 카드 왼쪽 위: 곡의 카테고리 + 무드 서치 조건
-    const f = state.filter, picked = f.moods.concat(f.genres);
+    const f = state.filter;
+    const picked = state.query ? state.query.labels.map((l) => l.text) : f.moods.concat(f.genres);
     const name = cat === "ALL" ? "전체" : (CAT_NAME[cat] || cat);
     if (!picked.length) return name;
-    return name + " · " + picked.slice(0, 2).join(", ") + (picked.length > 2 ? " 외 " + (picked.length - 2) : "");
+    return name + " · " + picked[0] + (picked.length > 1 ? " 외 " + (picked.length - 1) : "");
+  }
+
+  function paintCatTag(cat) {  // 전체 조건은 마우스를 올리면 보인다
+    const tag = $("cat-tag");
+    tag.textContent = catLabel(cat);
+    const all = state.query ? state.query.labels.map((l) => l.text) : state.filter.moods.concat(state.filter.genres);
+    tag.title = all.length ? (state.query ? "\u201c" + state.query.text + "\u201d → " : "") + all.join(", ") : "";
   }
 
   function cardTransition(fn, back) {  // 다음 곡은 위로, 이전 곡은 아래로 빠진다
@@ -186,9 +203,16 @@
       if (!p.ok && p.error) { say(p.error, true); }
     }
     state.phase = "loading";
-    const d = await api("/api/dig/next", { category: state.category, moods: state.filter.moods,
-                                           genres: state.filter.genres, fresh: !!(opts && opts.fresh) });
+    const body = { category: state.category, fresh: !!(opts && opts.fresh) };
+    if (state.query) body.mood_text = state.query.text;
+    else { body.moods = state.filter.moods; body.genres = state.filter.genres; }
+    const d = await api("/api/dig/next", body);
     state.busy = false;
+    if (!d.ok && state.query && d.error) {   // 해석 기록이 없어졌으면 문장 디깅을 풀고 다시
+      setQuery(null);
+      say(d.error + " 무드 서치를 풀고 계속할게요.", true);
+      return next({ skipPass: true, fresh: true });
+    }
     if (!d.ok) { say(d.error || "다음 곡을 불러오지 못했습니다.", true); state.phase = "empty"; return; }
     setTickets(d.tickets_left);
     if (d.empty) {
@@ -214,6 +238,7 @@
   function present(d, back) {  // 받은 곡을 카드에 올리고 재생
     setTickets(d.tickets_left);
     showSong();
+    if (d.mood_fallback) say("문장과 겹치는 곡이 남아 있지 않아 이번 곡은 무작위로 골랐어요.");
     state.song = d;
     state.phase = d.bought ? "revealed" : "listening";
     cardTransition(() => { renderSong(d); if (d.bought) reveal(d, false); }, back);
@@ -228,12 +253,12 @@
     $("mode").hidden = true;
     $("btn-sound").hidden = true;
     const all = state.category === "ALL";
-    const filtered = filterOn(state.filter);
-    $("cat-tag").textContent = catLabel(state.category);
+    const filtered = searchOn();
+    paintCatTag(state.category);
     const passed = st.passed || 0, bought = st.bought || 0;
     state.passedCount = passed;
     if (filtered) {                  // 무드 서치 조건 안에서 다 들음
-      $("empty-title").textContent = "고른 무드·장르의 곡을 모두 들었어요";
+      $("empty-title").textContent = state.query ? "이 느낌에 맞는 곡을 모두 들었어요" : "고른 무드·장르의 곡을 모두 들었어요";
       $("empty-body").textContent = "조건을 풀거나 바꾸면 다른 곡을 계속 디깅할 수 있어요."
         + (passed > 0 ? " 넘긴 곡을 다시 들을 수도 있어요." : "");
     } else if (st.active === 0) {   // 들은 게 아니라 풀 자체가 비어 있음
@@ -348,8 +373,67 @@
 
   function paintFilterButton() {
     const n = state.filter.moods.length + state.filter.genres.length;
-    $("filter-count").textContent = n ? " " + n : "";
-    $("btn-filter").classList.toggle("is-set", n > 0);
+    $("filter-count").textContent = state.query ? " AI" : (n ? " " + n : "");
+    $("btn-filter").classList.toggle("is-set", searchOn());
+  }
+
+  function setQuery(q) {
+    state.query = q;
+    store.set("digger.query", JSON.stringify(q));
+    paintFilterButton();
+  }
+
+  // ---- 느낌으로 찾기: 문장 → Gemini 해석(캐시 먼저) → 칩으로 보여 주고 → [이 느낌으로 디깅]
+  let askResult = null;
+  function askMsg(text, isError) {
+    const el = $("mood-msg");
+    el.hidden = !text;
+    el.textContent = text || "";
+    el.classList.toggle("error", !!isError);
+  }
+
+  function showAsk(result) {
+    askResult = result;
+    $("mood-result").hidden = !result;
+    if (!result) return;
+    const ul = $("mood-labels");
+    ul.textContent = "";
+    result.labels.forEach((l) => {
+      const li = document.createElement("li");
+      li.textContent = l.text;
+      if (l.g) li.dataset.g = l.g;
+      ul.appendChild(li);
+    });
+    $("mood-note").textContent = result.cached ? "AI가 이렇게 읽었어요 (전에 해석한 문장)" : "AI가 이렇게 읽었어요";
+  }
+
+  async function interpret(e) {
+    e.preventDefault();
+    const text = $("mood-text").value.trim();
+    if (!text) { askMsg("듣고 싶은 느낌을 한 문장으로 적어 주세요.", true); return; }
+    const go = $("mood-go");
+    go.disabled = true; go.textContent = "해석 중";
+    askMsg("Gemini가 문장을 읽고 있어요. 몇 초 걸릴 수 있어요.");
+    showAsk(null);
+    const d = await api("/api/mood/interpret", { text });
+    go.disabled = false; go.textContent = "해석";
+    if (!d.ok) { askMsg(d.error || "해석하지 못했어요. 아래에서 직접 골라 주세요.", true); return; }
+    if (d.status !== "DONE" || !d.labels.length) {
+      askMsg("문장에서 고를 무드를 찾지 못했어요. 분위기나 상황(예: 잔잔한, 새벽, 드라이브)을 넣어 다시 적어 주세요.", true);
+      return;
+    }
+    askMsg("");
+    showAsk({ text, labels: d.labels, cached: d.cached });
+  }
+
+  function applyQuery() {
+    if (!askResult) return;
+    setQuery({ text: askResult.text, labels: askResult.labels });
+    state.filter = { moods: [], genres: [] };        // 문장 디깅과 칩 조건은 함께 쓰지 않는다
+    store.set("digger.filter", JSON.stringify(state.filter));
+    paintFilterButton();
+    openFilter(false);
+    next({ skipPass: true, fresh: true });
   }
 
   function chip(name, n, picked, axis, group) {
@@ -410,12 +494,16 @@
     if (open) {
       draft = { moods: state.filter.moods.slice(), genres: state.filter.genres.slice() };
       loadFacets();
+      askMsg("");
+      $("mood-text").value = state.query ? state.query.text : $("mood-text").value;
+      showAsk(state.query ? { text: state.query.text, labels: state.query.labels, cached: true } : null);
     } else {
       draft = null;
     }
   }
 
   function applyFilter(f) {
+    if (state.query) setQuery(null);                // 칩으로 고르면 문장 디깅은 풀린다
     state.filter = f;
     store.set("digger.filter", JSON.stringify(f));
     paintFilterButton();
@@ -516,6 +604,8 @@
   $("btn-filter").addEventListener("click", () => openFilter(panel.hidden));
   $("filter-clear").addEventListener("click", () => { draft = { moods: [], genres: [] }; loadFacets(); });
   $("filter-apply").addEventListener("click", () => applyFilter(draft));
+  $("mood-form").addEventListener("submit", interpret);
+  $("mood-apply").addEventListener("click", applyQuery);
   document.querySelectorAll(".cat[data-cat]").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
   document.querySelectorAll(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 

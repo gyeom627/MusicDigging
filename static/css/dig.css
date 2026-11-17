@@ -69,7 +69,8 @@
 .deck-card.arriving-back { transform: translateY(-36px); opacity: 0; transition: none; }
 .deck-card.nudge-right { transform: translateX(14px) rotate(1deg); }
 .deck-top { display: flex; align-items: center; gap: 8px; min-height: 30px; margin: 0 0 10px; }
-.cat-tag { font-size: 13px; color: var(--sub); white-space: nowrap; }
+.cat-tag { font-size: 13px; color: var(--sub); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mode { flex: none; }
 .deck-top:has(.mode[hidden]) .cat-tag { margin-right: auto; }
 .sound {
   font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; cursor: pointer;
@@ -203,3 +204,22 @@
   .booth-bar .cat { padding: 6px 12px; }
   .fl-long { display: none; }   /* 좁은 화면에서는 '무드'만: 카테고리와 한 줄에 들어가게 */
 }
+
+/* 느낌으로 찾기 (Gemini) */
+.ask .filter-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ai-badge { font-size: 11px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--sub); border: 1px solid var(--line); }
+.ask-row { display: flex; gap: 8px; }
+.ask-row input { flex: 1; min-width: 0; font-size: 15px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.ask-go { flex: none; padding: 10px 16px; border-radius: 12px; background: var(--ink); color: var(--bg); font-weight: 500; }
+.ask-go:disabled { opacity: .55; cursor: progress; }
+.ask-msg { margin: 8px 0 0; font-size: 13px; color: var(--sub); }
+.ask-msg.error { color: var(--warn); }
+.ask-result { margin-top: 10px; padding: 12px; border-radius: 14px; background: var(--sunk); }
+.ask-note { margin: 0 0 8px; font-size: 12px; color: var(--sub); }
+.ask-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; padding: 0; }
+.ask-chips li { font-size: 13px; padding: 3px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.ask-chips li[data-g="밝은"] { border-color: #f2c14e; } .ask-chips li[data-g="차분한"] { border-color: #5fb3a6; }
+.ask-chips li[data-g="어두운"] { border-color: #8a7bd1; } .ask-chips li[data-g="강한"] { border-color: #e0605a; }
+.ask-result .move { width: 100%; padding: 12px; font-size: 15px; }
+.filter-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 4px; font-size: 12px; color: var(--sub); }
+.filter-or::before, .filter-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }

@@ -81,3 +81,62 @@ def interpret_mood(text):
         return "FAILED", {}, call
     status, tags, _notes = tag_rules.validate_mood_query(call["raw"])
     return status, tags, call
+
+
+# ---------------- 곡 등록: 하이라이트 오디오 분석 (설계 4.7, 8.2) ----------------
+AUDIO_TIMEOUT_MS = config.GEMINI_TIMEOUT_MS  # 영상 구간을 듣는 호출이라 무드 해석보다 오래 걸린다
+_audio_client = None
+
+
+def _get_audio_client():
+    global _audio_client
+    if _audio_client is None:
+        key = config.GEMINI_API_KEY
+        if not key or not key.isascii():
+            return None
+        from google import genai
+        from google.genai import types
+        _audio_client = genai.Client(api_key=key, http_options=types.HttpOptions(
+            timeout=AUDIO_TIMEOUT_MS, retry_options=types.HttpRetryOptions(attempts=1)))
+    return _audio_client
+
+
+def _call_audio_model(video_id, start_sec):
+    """YouTube 영상의 하이라이트 60초만 잘라 듣게 한다 (fps 0.2·저해상도로 화면 정보는 최소). 반환 형식은 _call_mood_model과 같음"""
+    t0 = time.time()
+    client = _get_audio_client()
+    if client is None:
+        return {"raw": "", "seconds": 0.0, "in_tok": None, "out_tok": None, "error": "GEMINI_API_KEY 없음"}
+    from google.genai import errors, types
+    part = types.Part(
+        file_data=types.FileData(file_uri=f"https://www.youtube.com/watch?v={video_id}"),
+        video_metadata=types.VideoMetadata(start_offset=f"{start_sec}s",
+                                           end_offset=f"{start_sec + config.HIGHLIGHT_SEC}s", fps=0.2),
+    )
+    cfg = types.GenerateContentConfig(
+        temperature=0.0,
+        response_mime_type="application/json",
+        response_json_schema=tag_rules.audio_schema(),
+        media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+    )
+    for attempt in (1, 2):
+        try:
+            resp = client.models.generate_content(model=config.GEMINI_MODEL, contents=[part, tag_rules.AUDIO_PROMPT],
+                                                  config=cfg)
+            i, o = _usage(resp)
+            return {"raw": resp.text or "", "seconds": round(time.time() - t0, 1), "in_tok": i, "out_tok": o, "error": ""}
+        except errors.ServerError as e:
+            if attempt == 2:
+                return _failed(t0, e)
+            time.sleep(3)
+        except Exception as e:  # noqa: BLE001
+            return _failed(t0, e)
+
+
+def analyze_audio(video_id, start_sec):
+    """반환: (status, tags, call). status = DONE / FAILED / NOT_MUSIC (tag_rules.validate_audio)"""
+    call = _call_audio_model(video_id, start_sec)
+    if call["error"]:
+        return "FAILED", {}, call
+    status, tags, _notes = tag_rules.validate_audio(call["raw"])
+    return status, tags, call

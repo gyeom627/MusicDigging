@@ -13,6 +13,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
 import scoring
+import tag_rules
 from db import close_db, get_db
 from guards import admin_required, login_required
 
@@ -33,6 +34,8 @@ from dig import bp as dig_bp  # noqa: E402  (app 설정 뒤에 등록)
 app.register_blueprint(dig_bp)
 from mood import bp as mood_bp  # noqa: E402
 app.register_blueprint(mood_bp)
+from submit import bp as submit_bp  # noqa: E402
+app.register_blueprint(submit_bp)
 
 
 # ---------------- 로그인 사용자 / 권한 ----------------
@@ -172,7 +175,13 @@ def ranking():
 @app.route("/submit")
 @login_required
 def submit():
-    return placeholder("곡 제보", "링크 확인 → 정보 입력 → AI 추천 칩 확인·수정 → 게시 순서로 진행됩니다.")
+    """곡 제보: 링크 확인 → 정보 입력 → AI 추천 칩 확인·수정 → 게시 (submit.py API + static/js/submit.js)"""
+    options = {"moods": tag_rules.MOOD_GROUPS, "energy": tag_rules.ENERGIES, "situations": tag_rules.SITUATIONS,
+               "times": tag_rules.TIMES, "instruments": tag_rules.INSTRUMENTS, "genre": tag_rules.GENRES,
+               "subgenres": tag_rules.GENRE_TREE}
+    limits = {axis: [mn, mx] for axis, (_, mn, mx) in tag_rules.AUDIO_LIMITS.items()}
+    return render_template("submit.html", categories=config.CATEGORIES, options=options, limits=limits,
+                           highlight=config.HIGHLIGHT_SEC, intro_max=config.INTRO_MAX)
 
 
 @app.route("/admin")
@@ -185,7 +194,28 @@ def admin():
         "review": db.execute("SELECT COUNT(*) FROM music WHERE status = 'REVIEW'").fetchone()[0],
         "tags": db.execute("SELECT COUNT(*) FROM tags").fetchone()[0],
     }
-    return render_template("admin.html", stats=stats)
+    review = db.execute(
+        "SELECT m.id, m.video_id, m.title, m.artist, m.category, m.review_reason, m.created_at, u.nickname "
+        "FROM music m LEFT JOIN users u ON u.id = m.submitted_by WHERE m.status = 'REVIEW' ORDER BY m.id").fetchall()
+    return render_template("admin.html", stats=stats, review=review, categories=config.CATEGORIES)
+
+
+@app.post("/admin/music/<int:music_id>/review")
+@admin_required
+def admin_review(music_id):
+    """검토 대기 곡 승인(디깅 풀에 공개) 또는 숨김. CSRF는 before_request에서 검사"""
+    action = request.form.get("action")
+    if action not in ("approve", "hide"):
+        abort(400)
+    db = get_db()
+    cur = db.execute("UPDATE music SET status = ? WHERE id = ? AND status = 'REVIEW'",
+                     ("ACTIVE" if action == "approve" else "HIDDEN", music_id))
+    db.commit()
+    if cur.rowcount:
+        flash("디깅 풀에 공개했습니다." if action == "approve" else "숨겼습니다.")
+    else:
+        flash("이미 처리된 곡입니다.", "error")
+    return redirect(url_for("admin"))
 
 
 # ---------------- 배포 확인용 (비밀값은 있는지 여부만) ----------------

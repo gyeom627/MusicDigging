@@ -72,3 +72,7 @@ form.inline { display: inline; }
 footer { max-width: 760px; margin: 40px auto 24px; padding: 0 16px; font-size: 12px; color: var(--sub); }
 
 @media (prefers-reduced-motion: reduce) { body { transition: none; } }
+.card + .card { margin-top: 16px; }
+.review-item { padding: 14px 0; border-top: 1px solid var(--line); }
+.review-item p { margin: 4px 0; }
+.review-actions { display: flex; gap: 16px; align-items: center; margin-top: 8px; }

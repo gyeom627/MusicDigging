@@ -9,6 +9,24 @@
     <tr><th>검토 대기(REVIEW)</th><td>{{ stats.review }}</td></tr>
     <tr><th>고정 태그</th><td>{{ stats.tags }} / 100</td></tr>
   </table>
-  <p class="sub">곡 등록·검토 승인·태그 수정·AI 채택률은 다음 단계에서 추가합니다.</p>
+</section>
+
+<section class="card review">
+  <h1>검토 대기 곡</h1>
+  {% if not review %}
+    <p class="sub">검토할 곡이 없습니다.</p>
+  {% endif %}
+  {% for m in review %}
+    <article class="review-item">
+      <p class="review-title"><strong>{{ m.title }}</strong> · {{ m.artist }} <span class="sub">({{ categories[m.category] }})</span></p>
+      <p class="sub">사유: {{ m.review_reason or "-" }} · 제보: {{ m.nickname or "관리자" }} · {{ m.created_at }} UTC</p>
+      <p><a href="https://www.youtube.com/watch?v={{ m.video_id }}" target="_blank" rel="noopener">YouTube에서 조회수·곡 확인</a></p>
+      <form method="post" action="{{ url_for('admin_review', music_id=m.id) }}" class="review-actions">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" name="action" value="approve">승인 (디깅 풀에 공개)</button>
+        <button type="submit" name="action" value="hide" class="link">숨김</button>
+      </form>
+    </article>
+  {% endfor %}
 </section>
 {% endblock %}

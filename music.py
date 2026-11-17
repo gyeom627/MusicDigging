@@ -32,10 +32,16 @@ def tag_ids(conn):
 
 
 def insert_song(conn, *, video_id, title, artist, category, start_sec, tags, origin="USER",
-                submitted_by=None, intro=None, status="ACTIVE", audio_status="SKIPPED"):
+                submitted_by=None, intro=None, status="ACTIVE", audio_status="SKIPPED",
+                origin_of=None, rejected=(), ai_ranks=None, review_reason=None,
+                web_status=None, discogs_url=None, discogs_styles=None):
     """곡 1개 + 확정 태그 저장 (커밋은 호출한 쪽에서). tags = {moods[순위순], genre, subgenres, instruments, ...}
+    origin_of = {(축, 값): 출처}로 태그마다 출처를 다르게 남길 수 있다 (없으면 모두 origin)
+    rejected = [(축, 값, 출처)]: 등록자가 끈 추천 → accepted = 0으로 저장
+    ai_ranks = {분위기: AI가 매긴 순위}
     반환: 새 music.id. 목록에 없는 태그는 ValueError."""
     ids = tag_ids(conn)
+    origin_of, ai_ranks = origin_of or {}, ai_ranks or {}
     rows = []
     for key, axis in AXIS_OF.items():
         vals = tags.get(key) or []
@@ -44,15 +50,20 @@ def insert_song(conn, *, video_id, title, artist, category, start_sec, tags, ori
         for rank, name in enumerate(vals, 1):
             if (axis, name) not in ids:
                 raise ValueError(f"목록에 없는 태그: {axis} {name}")
-            rows.append((ids[(axis, name)], rank if axis == "MOOD" else None))
+            rows.append((ids[(axis, name)], origin_of.get((key, name), origin), 1,
+                         rank if axis == "MOOD" else None, ai_ranks.get(name) if axis == "MOOD" else None))
+    for key, name, src in rejected:
+        rows.append((ids[(AXIS_OF[key], name)], src, 0, None, ai_ranks.get(name) if key == "moods" else None))
     cur = conn.execute(
         "INSERT INTO music (video_id, title, artist, title_norm, artist_norm, category, start_sec, intro, "
-        "submitted_by, status, audio_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "submitted_by, status, audio_status, review_reason, web_status, discogs_url, discogs_styles) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (video_id, title, artist, normalize(title), normalize(artist), category, start_sec, intro,
-         submitted_by, status, audio_status))
+         submitted_by, status, audio_status, review_reason, web_status, discogs_url,
+         ", ".join(discogs_styles) if discogs_styles else None))
     mid = cur.lastrowid
-    conn.executemany("INSERT INTO music_tags (music_id, tag_id, origin, accepted, rank) VALUES (?, ?, ?, 1, ?)",
-                     [(mid, tid, origin, rank) for tid, rank in rows])
+    conn.executemany("INSERT INTO music_tags (music_id, tag_id, origin, accepted, rank, ai_rank) VALUES (?, ?, ?, ?, ?, ?)",
+                     [(mid, tid, src, acc, rank, air) for tid, src, acc, rank, air in rows])
     return mid
 
 

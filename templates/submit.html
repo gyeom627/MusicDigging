@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}곡 제보{% endblock %}
+{% block body_class %}submit-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/submit.css') }}">{% endblock %}
+{% block content %}
+<div class="sub-wrap">
+  <header class="sub-head">
+    <h1>숨은 곡 제보</h1>
+    <p class="sub">조회수 100만 회 미만인 곡만 등록할 수 있어요. Gemini가 하이라이트를 듣고 태그를 추천하면, 확인하고 고쳐서 게시해요.</p>
+  </header>
+
+  <!-- 1. 링크 확인 -->
+  <section class="step" id="step-link">
+    <h2><span class="num">1</span> 유튜브 링크</h2>
+    <form class="row" id="link-form" autocomplete="off">
+      <input id="url" placeholder="https://youtu.be/…" inputmode="url" required>
+      <button type="submit" class="btn-ink" id="btn-check">확인</button>
+    </form>
+    <p class="msg" id="link-msg" role="status" hidden></p>
+  </section>
+
+  <!-- 2. 정보 입력: 영상을 들으며 하이라이트 시작 시점을 고른다 (플레이어 위에는 아무것도 겹치지 않음) -->
+  <section class="step" id="step-info" hidden>
+    <h2><span class="num">2</span> 곡 정보</h2>
+    <div class="screen"><div id="player"></div></div>
+    <p class="video-meta" id="video-meta"></p>
+    <form class="fields" id="info-form" autocomplete="off">
+      <label>제목 <input id="title" maxlength="100" required></label>
+      <label>아티스트 <input id="artist" maxlength="100" required></label>
+      <div class="field">
+        <span class="label">카테고리</span>
+        <div class="seg" role="radiogroup" aria-label="카테고리">
+          {% for code, name in categories.items() %}
+            <button type="button" class="seg-btn" data-cat="{{ code }}" role="radio" aria-checked="false">{{ name }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">하이라이트 시작 <small>여기부터 {{ highlight }}초를 AI가 듣고, 디깅에서도 여기부터 재생돼요</small></span>
+        <div class="row">
+          <input id="start" placeholder="1:05" inputmode="numeric" pattern="[0-9]{1,2}:[0-5][0-9]" required>
+          <button type="button" class="btn-line" id="btn-now">지금 재생 위치로</button>
+        </div>
+      </div>
+      <label>한줄 소개 <small>선택 · 매수한 사람과 게시판에만 보여요</small>
+        <input id="intro" maxlength="{{ intro_max }}" placeholder="예: 비 오는 날 창가에서 들으면 좋아요">
+      </label>
+      <button type="submit" class="btn-brass" id="btn-suggest">AI 추천 받기</button>
+    </form>
+    <p class="msg" id="info-msg" role="status" hidden></p>
+  </section>
+
+  <!-- 3. 추천 칩 확인·수정 -->
+  <section class="step" id="step-tags" hidden>
+    <h2><span class="num">3</span> 태그 확인</h2>
+    <div class="notes" id="notes"></div>
+    <p class="hint"><span class="mark">AI</span> 표시는 추천된 칩이에요. 눌러서 켜고 끌 수 있고, 분위기는 누른 순서가 1·2·3순위예요.</p>
+    <div id="axes"></div>
+    <button type="button" class="btn-brass" id="btn-publish">게시하기</button>
+    <p class="msg" id="tags-msg" role="status" hidden></p>
+  </section>
+
+  <!-- 완료 -->
+  <section class="step done" id="step-done" hidden>
+    <h2 id="done-title">디깅 풀에 들어갔어요</h2>
+    <p class="sub" id="done-body"></p>
+    <div class="row">
+      <a class="btn-brass" href="{{ url_for('index') }}">디깅하러 가기</a>
+      <a class="btn-line" href="{{ url_for('submit') }}">다른 곡 제보</a>
+    </div>
+  </section>
+</div>
+<script type="application/json" id="tag-options">{{ {"options": options, "limits": limits} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/submit.js') }}"></script>
+<script src="https://www.youtube.com/iframe_api" async></script>
+{% endblock %}

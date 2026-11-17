@@ -1,6 +1,6 @@
 /* 디깅 부스 — 레코드 가게. 곡의 1순위 분위기 그룹 색이 배경에 번진다 (색은 style.css 토큰: 기본/다크) */
 .booth-page main { max-width: 480px; margin: 0 auto; padding: 0; }
-.booth-page footer { max-width: 480px; }
+.booth-page footer { display: none; }  /* 고지는 부스 맨 아래에 작게 */
 .booth-page .flash { margin: 12px 16px 0; }
 .booth { --glow: #8f84ad; }
 
@@ -11,7 +11,6 @@
 
 .booth {
   position: relative;
-  min-height: calc(100dvh - 58px);
   display: flex; flex-direction: column;
   padding: 12px 16px 16px;
   isolation: isolate;
@@ -25,7 +24,7 @@
 }
 
 /* 상단: 카테고리 + 시작 위치 */
-.booth-bar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.booth-bar { margin-bottom: 12px; }
 .cats { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .cats::-webkit-scrollbar { display: none; }
 .cat {
@@ -33,16 +32,17 @@
   background: transparent; color: var(--sub); border: 1px solid var(--line); cursor: pointer;
 }
 .cat.is-on { color: var(--bg); background: var(--ink); border-color: var(--ink); }
-.mode { display: inline-grid; grid-template-columns: 1fr 1fr; background: var(--sunk); border-radius: 10px; padding: 3px; align-self: flex-start; }
+.mode { display: inline-grid; grid-template-columns: auto auto; background: var(--sunk); border-radius: 10px; padding: 3px; margin-right: auto; }
 .mode-btn {
-  font: inherit; font-size: 13px; padding: 6px 12px; border: 0; border-radius: 8px;
+  font: inherit; font-size: 12px; padding: 4px 10px; border: 0; border-radius: 8px; white-space: nowrap;
   background: transparent; color: var(--sub); cursor: pointer;
 }
 .mode-btn.is-on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line); }
 .mode-btn:disabled { opacity: .4; cursor: default; }
 
 /* 플레이어: 위에 아무것도 겹치지 않는다 (YouTube 정책) */
-.screen { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 200px; border-radius: 14px; overflow: hidden; background: #000; }
+/* 화면이 낮으면 영상 높이를 줄여 카드 전체가 한 화면에 들어오게 (YouTube 최소 200px은 지킨다) */
+.screen { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 200px; max-height: max(200px, calc(100dvh - 470px)); border-radius: 12px; overflow: hidden; background: #000; }
 .screen iframe, .screen #player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .scrub { margin-top: 10px; }
 .scrub-track { position: relative; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
@@ -50,27 +50,34 @@
 .scrub-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--ink); }
 .scrub-time { display: flex; justify-content: space-between; font-size: 12px; color: var(--sub); margin-top: 4px; font-variant-numeric: tabular-nums; }
 
-/* 덱: 스와이프를 받는 영역 (플레이어 위의 터치는 iframe이 가져가므로 아래쪽에서만) */
-.deck { flex: 1; display: flex; flex-direction: column; margin-top: 14px; touch-action: none; user-select: none; outline: none; }
-.deck:focus-visible .deck-card { box-shadow: 0 0 0 2px var(--accent); }
+/* 플레잉 카드: 바탕과 확실히 구분되는 한 장의 카드 */
+.player-card {
+  margin-top: 4px; outline: none; touch-action: none; user-select: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 14px;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent),
+              0 18px 40px -18px color-mix(in srgb, var(--glow) 55%, transparent);
+  transition: box-shadow 900ms ease;
+}
+.player-card:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 .deck-card {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  border: 1px solid var(--line);
-  border-radius: 18px; padding: 16px;
   transition: transform 260ms cubic-bezier(.2,.8,.2,1), opacity 260ms;
 }
 .deck-card.leaving { transform: translateY(-36px); opacity: 0; }
 .deck-card.arriving { transform: translateY(36px); opacity: 0; transition: none; }
+.deck-card.leaving-back { transform: translateY(36px); opacity: 0; }
+.deck-card.arriving-back { transform: translateY(-36px); opacity: 0; transition: none; }
 .deck-card.nudge-right { transform: translateX(14px) rotate(1deg); }
-.deck-top { display: flex; justify-content: space-between; align-items: center; min-height: 28px; }
-.cat-tag { font-size: 13px; color: var(--sub); }
+.deck-top { display: flex; align-items: center; gap: 8px; min-height: 30px; margin: 0 0 10px; }
+.cat-tag { font-size: 13px; color: var(--sub); white-space: nowrap; }
+.deck-top:has(.mode[hidden]) .cat-tag { margin-right: auto; }
 .sound {
   font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; cursor: pointer;
-  background: var(--ink); color: var(--bg); border: 0;
+  background: var(--ink); color: var(--bg); border: 0; white-space: nowrap;
 }
 
 /* 슬리브: 가려진 제목이 매수하면 풀린다 */
-.sleeve { margin: 10px 0 14px; min-height: 84px; }
+.song { padding: 4px 2px 2px; }
+.sleeve { margin: 12px 0 14px; min-height: 84px; }
 .sleeve p { margin: 0; }
 .sleeve-title { font-size: 26px; font-weight: 700; line-height: 1.25; letter-spacing: -0.02em; }
 .sleeve-artist { font-size: 16px; margin-top: 6px; color: var(--sub); }
@@ -112,18 +119,19 @@
 .deck-help { text-align: center; font-size: 13px; color: var(--sub); margin: 14px 0 0; }
 .deck-keys { display: none; text-align: center; font-size: 12px; color: var(--sub); margin: 6px 0 0; }
 .deck-keys kbd { font: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin: 0 2px 0 8px; }
-@media (hover: hover) and (pointer: fine) { .deck-keys { display: block; } }
+.deck-keys kbd + kbd { margin-left: 2px; }
+@media (hover: hover) and (pointer: fine) { .deck-keys { display: block; margin-top: 14px; } .deck-help { display: none; } }
 .deck-msg { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--note); font-size: 14px; }
 .deck-msg.error { background: var(--note-err); color: var(--warn); }
 .deck-msg a, .deck-msg button.link { color: var(--accent); }
 
-/* 매수 순간: 패널 테두리가 황동색으로 한 번 빛난다 */
-.deck-card.bought { animation: struck 700ms ease-out; }
+/* 매수 순간: 카드 테두리가 황동색으로 한 번 빛난다 */
+.player-card:has(.deck-card.bought) { animation: struck 700ms ease-out; }
 @keyframes struck { 0% { box-shadow: 0 0 0 0 var(--brass); } 40% { box-shadow: 0 0 0 4px var(--brass); } 100% { box-shadow: 0 0 0 0 transparent; } }
 
 @media (prefers-reduced-motion: reduce) {
   .booth::before, .deck-card { transition: none; }
-  .sleeve.revealed .sleeve-title, .sleeve.revealed .sleeve-artist, .deck-card.bought { animation: none; }
+  .sleeve.revealed .sleeve-title, .sleeve.revealed .sleeve-artist, .player-card { animation: none !important; }
 }
 @media (min-width: 720px) {
   .booth { padding-top: 20px; }
@@ -138,3 +146,21 @@
   .booth-page .me > span:not(.tickets), .booth-page .me form { display: none; }
   .booth-page .logo { font-size: 18px; }
 }
+
+/* 다 들었을 때: 카드 안에서 안내 */
+.empty { padding: 28px 6px 8px; text-align: center; }
+.empty-title { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+.empty-body { color: var(--sub); margin: 0 0 18px; font-size: 14px; }
+.empty-actions { display: flex; gap: 10px; }
+.empty-actions .move { flex: 1; font-size: 15px; padding: 14px 10px; white-space: nowrap; }
+.empty-actions a.move { text-decoration: none; }
+.booth-legal { text-align: center; font-size: 11px; color: var(--sub); margin: 18px 0 0; }
+.booth .deck-msg { margin-top: 12px; }
+@media (max-height: 700px) {
+  .sleeve { margin: 8px 0 10px; min-height: 64px; }
+  .sleeve-title { font-size: 22px; }
+  .sleeve-note { margin-top: 6px !important; }
+  .moods { margin-bottom: 12px; }
+  .move, .next-after { padding: 12px; }
+}
+.booth-page { overscroll-behavior-y: contain; }  /* 아래로 밀기(이전 곡)가 모바일 당겨서 새로고침과 겹치지 않게 */

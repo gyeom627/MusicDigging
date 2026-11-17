@@ -17,6 +17,7 @@ pip install -r requirements.txt
 copy .env.example .env            :: 메모장으로 열어 값 채우기 (FLASK_SECRET_KEY, GEMINI_API_KEY 등)
 python manage.py init-db          :: 테이블 + 태그 100개
 python manage.py create-admin     :: 관리자 계정
+python manage.py reset-passes 아이디   :: 테스트로 넘긴 곡을 다시 나오게
 python scripts\seed_songs.py      :: 시드 곡 넣기 (data/seed_songs.csv, 여러 번 실행해도 안전)
 python -m unittest discover tests -v
 python app.py                     :: http://127.0.0.1:5000
@@ -49,7 +50,7 @@ dig.py          디깅 API: /api/dig/next·buy·pass·error
 music.py        곡 저장·태그 조회·정규화(중복 판정)
 guards.py       로그인·관리자 데코레이터
 data/           seed_songs.csv (검증 때 확정한 태그)
-manage.py       init-db, create-admin
+manage.py       init-db, create-admin, reset-passes
 scripts/        check_apis.py (서버에서 외부 API 연결 점검)
 tests/          test_smoke.py, test_dig.py (동시 매수·매수권 초과·블라인드 등)
 ```

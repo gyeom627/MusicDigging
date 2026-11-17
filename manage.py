@@ -2,6 +2,7 @@
 관리 명령 (로컬·PythonAnywhere 콘솔 공통)
   python manage.py init-db          테이블 생성 + 고정 태그 100개 (여러 번 실행해도 안전)
   python manage.py create-admin     관리자 계정 만들기 (비밀번호는 화면에 보이지 않게 입력)
+  python manage.py reset-passes 아이디   그 계정이 넘긴 곡을 다시 나오게 (매수 기록은 그대로)
 """
 import getpass
 import sqlite3
@@ -33,11 +34,26 @@ def create_admin():
         conn.close()
 
 
+def reset_passes(username):
+    conn = get_db_connection()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE username = ?", (username.strip().lower(),)).fetchone()
+        if row is None:
+            sys.exit(f"{username} 계정을 찾을 수 없습니다.")
+        n = conn.execute("DELETE FROM passes WHERE user_id = ?", (row[0],)).rowcount
+        conn.commit()
+        print(f"{username}: 넘긴 곡 {n}개를 다시 디깅 풀에 돌려놓았습니다.")
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "init-db":
         print(f"DB: {config.DATABASE}\n태그 {init_db()}개 준비 완료")
     elif cmd == "create-admin":
         create_admin()
+    elif cmd == "reset-passes" and len(sys.argv) > 2:
+        reset_passes(sys.argv[2])
     else:
         print(__doc__)

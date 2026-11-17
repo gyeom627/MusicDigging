@@ -1,4 +1,4 @@
-// 디깅 부스: 들어오자마자 첫 곡이 재생되고, 위로 밀면 다음 곡, 오른쪽으로 밀거나 두 번 탭하면 매수
+// 디깅 부스: 들어오자마자 첫 곡이 재생되고, 위로 밀면 다음 곡, 아래로 밀면 이전 곡, 오른쪽으로 밀거나 두 번 탭하면 매수
 (function () {
   const $ = (id) => document.getElementById(id);
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -107,15 +107,16 @@
     paintScrub();
   }
 
-  function cardTransition(fn) {
+  function cardTransition(fn, back) {  // 다음 곡은 위로, 이전 곡은 아래로 빠진다
     const card = $("deck-card");
     if (reduceMotion) { fn(); return; }
-    card.classList.add("leaving");
+    const out = back ? "leaving-back" : "leaving", into = back ? "arriving-back" : "arriving";
+    card.classList.add(out);
     setTimeout(() => {
       fn();
-      card.classList.remove("leaving");
-      card.classList.add("arriving");
-      requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove("arriving")));
+      card.classList.remove(out);
+      card.classList.add(into);
+      requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove(into)));
     }, 200);
   }
 
@@ -159,25 +160,61 @@
       if (!p.ok && p.error) { say(p.error, true); }
     }
     state.phase = "loading";
-    const d = await api("/api/dig/next", { category: state.category });
+    const d = await api("/api/dig/next", { category: state.category, fresh: !!(opts && opts.fresh) });
     state.busy = false;
     if (!d.ok) { say(d.error || "다음 곡을 불러오지 못했습니다.", true); state.phase = "empty"; return; }
     setTickets(d.tickets_left);
     if (d.empty) {
       state.phase = "empty"; state.song = null;
       if (playerReady) player.stopVideo();
-      $("booth").dataset.group = "none";
-      say("", false, state.category === "ALL"
-        ? '들을 수 있는 곡을 모두 들었어요. 새 곡을 <a href="/submit">제보</a>해 디깅 풀을 채워 주세요.'
-        : '이 카테고리는 모두 들었어요. <button type="button" class="link" id="to-all">전체에서 디깅하기</button>');
-      const toAll = $("to-all");
-      if (toAll) toAll.addEventListener("click", () => setCategory("ALL"));
+      showEmpty();
       return;
     }
+    present(d, false);
+  }
+
+  async function prev() {  // 릴스처럼 이전 곡으로. 지금 곡은 패스로 기록하지 않는다 (아직 판단 전)
+    if (state.busy) return;
+    state.busy = true;
+    const d = await api("/api/dig/prev");
+    state.busy = false;
+    if (!d.ok) { say(d.error || "이전 곡을 불러오지 못했습니다.", true); return; }
+    if (d.none) { say("처음 들은 곡이에요. 더 이전 곡은 없어요."); return; }
+    say("");
+    present(d, true);
+  }
+
+  function present(d, back) {  // 받은 곡을 카드에 올리고 재생
+    setTickets(d.tickets_left);
+    showSong();
     state.song = d;
-    state.phase = "listening";
-    cardTransition(() => renderSong(d));
+    state.phase = d.bought ? "revealed" : "listening";
+    cardTransition(() => { renderSong(d); if (d.bought) reveal(d, false); }, back);
     load();
+  }
+
+  function showEmpty() {
+    $("booth").dataset.group = "none";
+    $("stage").hidden = true;            // 재생을 멈춘 뒤에만 숨긴다
+    $("song").hidden = true;
+    $("empty").hidden = false;
+    $("mode").hidden = true;
+    $("btn-sound").hidden = true;
+    const all = state.category === "ALL";
+    $("cat-tag").textContent = all ? "전체" : (CAT_NAME[state.category] || state.category);
+    $("empty-title").textContent = all ? "디깅 풀의 곡을 모두 들었어요" : "이 카테고리의 곡을 모두 들었어요";
+    $("empty-body").textContent = all
+      ? "새 곡이 등록되면 다시 디깅할 수 있어요. 알고 있는 숨은 곡을 제보해 주세요."
+      : "다른 카테고리나 전체에서 계속 디깅할 수 있어요.";
+    $("btn-to-all").hidden = all;
+  }
+
+  function showSong() {
+    $("empty").hidden = true;
+    $("mode").hidden = false;
+    $("stage").hidden = false;
+    $("song").hidden = false;
+    if (!state.activated && playerReady) $("btn-sound").hidden = false;
   }
 
   async function buy() {
@@ -191,6 +228,11 @@
     if (!d.ok) { say(d.error, true); if (d.tickets_left === 0) setTickets(0); return; }
     setTickets(d.tickets_left);
     state.phase = "revealed";
+    reveal(d, true);
+    // 매수한 곡은 계속 들을 수 있게 재생을 멈추지 않는다 (플레이어도 계속 보이게)
+  }
+
+  function reveal(d, justBought) {  // 제목·아티스트 공개. 이전 곡으로 돌아온 매수 곡도 같은 모습
     const sleeve = $("sleeve");
     $("sv-title").textContent = d.title;
     $("sv-artist").textContent = d.artist;
@@ -199,7 +241,7 @@
     const line = document.createElement("span");
     line.className = "rank-line";
     const rank = document.createElement("span");
-    rank.textContent = d.rank + "번째 매수자" + (d.genre ? ", " + d.genre : "");
+    rank.textContent = (justBought ? "" : "매수한 곡, ") + d.rank + "번째 매수자" + (d.genre ? ", " + d.genre : "");
     line.appendChild(rank);
     if (d.is_early) {
       const fd = document.createElement("span");
@@ -208,12 +250,13 @@
       line.appendChild(fd);
     }
     note.appendChild(line);
-    sleeve.classList.add("revealed");
-    const card = $("deck-card");
-    card.classList.remove("bought"); void card.offsetWidth; card.classList.add("bought");
+    sleeve.classList.toggle("revealed", justBought);
+    if (justBought) {
+      const card = $("deck-card");
+      card.classList.remove("bought"); void card.offsetWidth; card.classList.add("bought");
+    }
     document.querySelector(".moves").hidden = true;
     $("btn-next").hidden = false;
-    // 매수한 곡은 계속 들을 수 있게 재생을 멈추지 않는다 (플레이어도 계속 보이게)
   }
 
   function setCategory(cat) {
@@ -224,7 +267,7 @@
       b.classList.toggle("is-on", on);
       b.setAttribute("aria-checked", on);
     });
-    next({ skipPass: true });  // 카테고리를 바꾼 것은 곡을 평가한 것이 아니므로 패스로 기록하지 않음
+    next({ skipPass: true, fresh: true });  // 카테고리를 바꾼 것은 곡을 평가한 것이 아니므로 패스로 기록하지 않음
   }
 
   async function reportError() {
@@ -278,6 +321,7 @@
     const quick = Date.now() - start.t < 600;
     start = null;
     if (dy < -60 && Math.abs(dy) > Math.abs(dx)) { next(); return; }          // 위로 밀기 = 다음 곡
+    if (dy > 60 && Math.abs(dy) > Math.abs(dx)) { prev(); return; }           // 아래로 밀기 = 이전 곡
     if (dx > 80 && Math.abs(dx) > Math.abs(dy)) { buy(); return; }            // 오른쪽 밀기 = 매수
     if (quick && Math.abs(dx) < 10 && Math.abs(dy) < 10) {                    // 두 번 탭 = 매수
       const now = Date.now();
@@ -285,13 +329,30 @@
     }
   });
   deck.addEventListener("pointercancel", () => { start = null; $("deck-card").classList.remove("nudge-right"); });
-  deck.addEventListener("wheel", (e) => {
-    if (e.deltaY > 40 && Date.now() > wheelLock) { wheelLock = Date.now() + 900; next(); }
-  }, { passive: true });
+  // 휠: 페이지를 내리지 않고 다음 곡으로. 트랙패드 관성으로 여러 곡이 넘어가지 않게 한 번에 한 곡.
+  // 창이 너무 낮아 카드가 화면 밖으로 잘릴 때만, 카드 밖에서 굴린 휠은 원래대로 페이지를 움직인다
+  let wheelAcc = 0, wheelTimer = null;
+  $("booth").addEventListener("wheel", (e) => {
+    const r = deck.getBoundingClientRect();
+    const cardCut = r.bottom > window.innerHeight + 1 || r.top < -1;
+    if (cardCut && !deck.contains(e.target)) return;
+    e.preventDefault();
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => { wheelAcc = 0; }, 250);   // 휠을 멈추면 다시 셈
+    if (state.busy || Date.now() < wheelLock || e.deltaY === 0) return;
+    if (Math.sign(e.deltaY) !== Math.sign(wheelAcc)) wheelAcc = 0;   // 방향이 바뀌면 새로 셈
+    wheelAcc += e.deltaY;
+    if (Math.abs(wheelAcc) > 60) {
+      const down = wheelAcc > 0;
+      wheelAcc = 0; wheelLock = Date.now() + 1200;
+      if (down) next(); else prev();                                   // 휠 내림 = 다음 곡, 올림 = 이전 곡
+    }
+  }, { passive: false });
   document.addEventListener("keydown", (e) => {
     if (e.target.matches("input, textarea")) return;
     activate();
     if (e.key === "ArrowDown") { e.preventDefault(); next(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); prev(); }
     else if (e.key === "ArrowRight") { e.preventDefault(); buy(); }
     else if (e.key === "ArrowLeft") { e.preventDefault(); next(); }
     else if (e.key === "m" || e.key === "M") { if (playerReady) (player.isMuted() ? player.unMute() : player.mute()); }
@@ -303,6 +364,7 @@
   $("btn-next").addEventListener("click", () => next());
   $("btn-buy").addEventListener("click", buy);
   $("btn-sound").addEventListener("click", activate);
+  $("btn-to-all").addEventListener("click", () => setCategory("ALL"));
   document.querySelectorAll(".cat").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
   document.querySelectorAll(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 

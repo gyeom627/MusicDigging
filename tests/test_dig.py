@@ -163,6 +163,46 @@ class DigTest(unittest.TestCase):
         self.assertEqual(buy_count, 8)
         self.assertEqual(counts, list(range(8)))  # 0~7이 한 번씩: 매수 순번이 겹치지 않음
 
+    def test_prev_returns_earlier_songs_like_reels(self):
+        new_song(); new_song()
+        c = client_for(new_user("prev_u"))
+        self.assertTrue(post(c, "/api/dig/prev").get_json()["none"])  # 아직 들은 곡이 없음
+        first = post(c, "/api/dig/next").get_json()
+        post(c, "/api/dig/pass")
+        second = post(c, "/api/dig/next").get_json()
+        self.assertNotEqual(first["video_id"], second["video_id"])
+        back = post(c, "/api/dig/prev").get_json()  # 실수로 넘긴 곡으로 돌아감
+        self.assertEqual(back["video_id"], first["video_id"])
+        self.assertFalse(back["bought"])
+        self.assertNotIn("title", back)  # 돌아가도 여전히 블라인드
+        self.assertTrue(post(c, "/api/dig/prev").get_json()["none"])  # 더 이전 곡은 없음
+        self.assertEqual(post(c, "/api/dig/buy").status_code, 200)  # 넘겼던 곡도 다시 매수할 수 있음
+        fwd = post(c, "/api/dig/next").get_json()  # 다시 내리면 들었던 다음 곡으로
+        self.assertEqual(fwd["video_id"], second["video_id"])
+        again = post(c, "/api/dig/prev").get_json()  # 매수한 곡으로 돌아가면 공개된 정보
+        self.assertTrue(again["bought"])
+        self.assertTrue(again["title"].startswith("곡"))
+        self.assertEqual(post(c, "/api/dig/buy").status_code, 409)  # 두 번 매수는 안 됨
+
+    def test_prev_from_empty_goes_to_last_song(self):
+        new_song()
+        c = client_for(new_user("prev_empty_u"))
+        only = post(c, "/api/dig/next").get_json()
+        post(c, "/api/dig/pass")
+        self.assertTrue(post(c, "/api/dig/next").get_json()["empty"])
+        back = post(c, "/api/dig/prev").get_json()
+        self.assertEqual(back["video_id"], only["video_id"])
+
+    def test_prev_skips_songs_hidden_meanwhile(self):
+        new_song(); new_song()
+        c = client_for(new_user("prev_hidden_u"))
+        post(c, "/api/dig/next"); post(c, "/api/dig/pass")
+        post(c, "/api/dig/next")
+        conn = db.get_db_connection()
+        conn.execute("UPDATE music SET status = 'HIDDEN'")  # 들었던 곡들이 그사이 숨겨짐
+        conn.commit(); conn.close()
+        self.assertTrue(post(c, "/api/dig/prev").get_json()["none"])
+
 
 if __name__ == "__main__":
     unittest.main()

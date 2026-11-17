@@ -8,7 +8,7 @@ Gemini가 곡의 하이라이트를 직접 듣고 무드 태그를 추천하고,
 - 11주차: 가입·로그인·권한, 화면 골격, DB 스키마(11개 테이블)·고정 태그 100개, 배포 확인용 `/health`
 - 12주차: 시드 곡 12곡, 디깅 플레이어(블라인드 전체 재생·하이라이트부터/처음부터·이전 곡·무드 서치·매수·패스·재생 오류 보고), 매수 트랜잭션·하루 매수권 10장
 - 12주차 Gemini 연동: 무드 문장 디깅 — 문장을 고정 태그로 해석(캐시·하루 20회 제한·실패 시 칩으로 대체), 최고점 절반 이상 묶음에서 추첨
-- 12주차 곡 제보: 링크 확인 → 곡 단위 조회수 판정 → Gemini 오디오 분석 + Discogs 추천 칩 → 등록자 수정 → 게시(검토 대기는 관리자 승인)
+- 12주차 곡 제보: 링크 확인 → 곡 단위 조회수 판정 → Gemini 오디오 분석 + Discogs 추천 칩 → 등록자 수정 → 게시 → 관리자 승인(제목·아티스트 수정 가능) 후 디깅 풀 공개
 
 ## 1. 로컬 실행 (Windows)
 ```
@@ -59,13 +59,14 @@ gemini_service.py  Gemini 호출: 무드 문장 해석(20초)·하이라이트 �
 submit.py       곡 제보 API: /api/submit/check·suggest·publish (영상 조건·곡 단위 조회수·재검사·출처 기록)
 youtube_service.py  videos.list·search.list, 같은 곡 판정(커버 제외), MV 제안 — 결과는 저장하지 않음
 discogs_service.py  릴리스 검색·아티스트/트랙 일치 확인·장르 변환 (토큰 없으면 건너뜀)
+admin_music.py  관리자 곡 관리: 목록·검색, 정보·태그 수정, 영상 교체, 숨김/복구, 삭제(기록 없는 곡만)
 tagging.py      추천 칩 병합(Discogs 장르 우선), 태그 출처 판정(AI/DISCOGS/BOTH/USER/ADMIN), 개수 규칙 검사
 music.py        곡 저장·태그 조회·정규화(중복 판정)
 guards.py       로그인·관리자 데코레이터
 data/           seed_songs.csv (검증 때 확정한 태그)
 manage.py       init-db, create-admin, reset-passes, pool-status, restore-errors, list-users, set-password
 scripts/        check_apis.py (외부 API 연결 점검), seed_songs.py (시드 곡), try_mood.py (무드 해석 시험)
-tests/          test_smoke.py, test_dig.py, test_submit.py (외부 API는 가짜로 바꿔 판정·재검사·출처·제한 확인)
+tests/          test_smoke.py, test_dig.py, test_submit.py, test_admin_music.py (외부 API는 가짜로 바꿔 판정·재검사·출처·제한 확인)
 ```
 
 ## 4. 보안 규칙

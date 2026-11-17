@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}곡 관리{% endblock %}
+{% block content %}
+<section class="card">
+  <p class="crumb"><a href="{{ url_for('admin') }}">관리자</a> › 곡 관리</p>
+  <h1>곡 관리</h1>
+  <nav class="tabs" aria-label="상태">
+    {% for code, name in status_names.items() %}
+      <a href="{{ url_for('admin_music.music_list', status=code) }}" class="tab{% if code == status %} is-on{% endif %}"
+         {% if code == status %}aria-current="page"{% endif %}>{{ name }} {{ counts.get(code, 0) }}</a>
+    {% endfor %}
+  </nav>
+  <form method="get" class="search">
+    <input type="hidden" name="status" value="{{ status }}">
+    <input name="q" value="{{ q }}" placeholder="제목·아티스트 검색" maxlength="50">
+    <button type="submit">검색</button>
+  </form>
+  {% if status == "REVIEW" %}<p class="sub">검토 대기 곡은 <a href="{{ url_for('admin') }}">관리자 첫 화면</a>에서 태그를 보며 바로 승인할 수도 있습니다.</p>{% endif %}
+  {% if not rows %}<p class="sub">{% if q %}'{{ q }}'에 맞는 곡이 없습니다.{% else %}곡이 없습니다.{% endif %}</p>{% endif %}
+  <ul class="song-list">
+    {% for m in rows %}
+      <li>
+        <a href="{{ url_for('admin_music.music_edit', music_id=m.id) }}">
+          <strong>{{ m.title }}</strong> <span class="sub">{{ m.artist }} · {{ categories[m.category] }}</span>
+        </a>
+        <span class="meta">
+          매수 {{ m.buy_count }}
+          {% if m.error_count %}<span class="bad">재생 오류 {{ m.error_count }}</span>{% endif %}
+          {% if m.review_reason and status == "REVIEW" %}<span class="bad">확인 필요</span>{% endif %}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% if total > page_size %}
+    <p class="pager">
+      {% if page > 1 %}<a href="{{ url_for('admin_music.music_list', status=status, q=q, page=page - 1) }}">이전</a>{% endif %}
+      {{ page }} / {{ ((total - 1) // page_size) + 1 }}
+      {% if page * page_size < total %}<a href="{{ url_for('admin_music.music_list', status=status, q=q, page=page + 1) }}">다음</a>{% endif %}
+    </p>
+  {% endif %}
+</section>
+{% endblock %}

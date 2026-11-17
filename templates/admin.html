@@ -9,22 +9,41 @@
     <tr><th>검토 대기(REVIEW)</th><td>{{ stats.review }}</td></tr>
     <tr><th>고정 태그</th><td>{{ stats.tags }} / 100</td></tr>
   </table>
+  <p><a href="{{ url_for('admin_music.music_list') }}">곡 관리: 수정·숨김·영상 교체·삭제</a></p>
 </section>
 
 <section class="card review">
   <h1>검토 대기 곡</h1>
-  {% if not review %}
-    <p class="sub">검토할 곡이 없습니다.</p>
-  {% endif %}
-  {% for m in review %}
+  <p class="sub">사용자 제보는 모두 여기서 승인해야 디깅 풀에 들어갑니다. 자동 확인에서 사유가 걸린 곡이 위에 있습니다.
+    제목·아티스트가 영상과 다르면 고친 뒤 승인하세요.</p>
+  {% if not review %}<p class="sub">검토할 곡이 없습니다.</p>{% endif %}
+  {% for r in review %}{% set m = r.m %}
     <article class="review-item">
-      <p class="review-title"><strong>{{ m.title }}</strong> · {{ m.artist }} <span class="sub">({{ categories[m.category] }})</span></p>
-      <p class="sub">사유: {{ m.review_reason or "-" }} · 제보: {{ m.nickname or "관리자" }} · {{ m.created_at }} UTC</p>
-      <p><a href="https://www.youtube.com/watch?v={{ m.video_id }}" target="_blank" rel="noopener">YouTube에서 조회수·곡 확인</a></p>
-      <form method="post" action="{{ url_for('admin_review', music_id=m.id) }}" class="review-actions">
+      {% if m.review_reason %}
+        <p class="review-flag">확인 필요: {{ m.review_reason }}</p>
+      {% else %}
+        <p class="review-ok">자동 확인 통과 (곡 단위 조회수·영상 조건·오디오 분석)</p>
+      {% endif %}
+      <p class="sub">
+        {{ categories[m.category] }} · 하이라이트 {{ m.start_sec // 60 }}:{{ '%02d' % (m.start_sec % 60) }}
+        · 제보 {{ m.nickname or "관리자" }} · {{ m.created_at }} UTC
+        · <a href="https://www.youtube.com/watch?v={{ m.video_id }}&t={{ m.start_sec }}s" target="_blank" rel="noopener">YouTube에서 영상 제목·조회수 확인</a>
+      </p>
+      {% if m.intro %}<p class="sub">한줄 소개: {{ m.intro }}</p>{% endif %}
+      <p class="review-tags">
+        {% for t in r.tags %}<span class="rtag" title="{{ axis_names[t.axis] }} · 출처 {{ t.origin }}">{% if t.rank %}{{ t.rank }}. {% endif %}{{ t.name }}<small>{{ t.origin }}</small></span>{% endfor %}
+      </p>
+      {% if r.off %}<p class="sub">등록자가 끈 추천: {% for t in r.off %}{{ t.name }}({{ t.origin }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      {% if m.discogs_url %}<p class="sub">장르 참고: <a href="{{ m.discogs_url }}" target="_blank" rel="noopener">Data provided by Discogs</a></p>{% endif %}
+      <form method="post" action="{{ url_for('admin_review', music_id=m.id) }}" class="review-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" name="action" value="approve">승인 (디깅 풀에 공개)</button>
-        <button type="submit" name="action" value="hide" class="link">숨김</button>
+        <label>제목 <input name="title" value="{{ m.title }}" maxlength="100" required></label>
+        <label>아티스트 <input name="artist" value="{{ m.artist }}" maxlength="100" required></label>
+        <div class="review-actions">
+          <button type="submit" name="action" value="approve">승인 (디깅 풀에 공개)</button>
+          <button type="submit" name="action" value="hide" class="link" formnovalidate>숨김</button>
+          <a href="{{ url_for('admin_music.music_edit', music_id=m.id) }}">태그까지 고치기</a>
+        </div>
       </form>
     </article>
   {% endfor %}

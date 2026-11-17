@@ -247,10 +247,11 @@
     $("step-done").hidden = false;
     if (d.status === "ACTIVE") {
       $("done-title").textContent = "디깅 풀에 들어갔어요";
-      $("done-body").textContent = "다른 디거들이 블라인드로 이 곡을 만나게 돼요. 제보한 곡도 디깅에서 만나면 매수할 수 있어요.";
+      $("done-body").textContent = "다른 디거들이 블라인드로 이 곡을 만나게 돼요.";
     } else {
-      $("done-title").textContent = "검토 대기로 등록했어요";
-      $("done-body").textContent = "관리자가 확인하면 디깅 풀에 들어가요. 사유: " + (d.review_reason || "");
+      $("done-title").textContent = "제보를 받았어요";
+      $("done-body").textContent = "관리자가 곡 정보와 태그를 확인하면 디깅 풀에 들어가요. 공개되면 디깅에서 만나 매수할 수도 있어요."
+        + (d.review_reason ? " (확인할 점: " + d.review_reason + ")" : "");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }

@@ -5,6 +5,7 @@
   4단계 /api/submit/publish 등록자가 고친 칩으로 게시 (영상 재조회·검색 조합 확인·출처 기록)
 - 진행 상태는 세션 submit에만 둔다: 브라우저가 보낸 video_id·출처·판정 결과는 믿지 않는다
 - YouTube API 결과(조회수·길이·채널명·검색 결과)는 판정에만 쓰고 DB에 저장하지 않는다
+- 사용자 제보는 모두 REVIEW로 저장하고 관리자가 승인해야 디깅 풀에 들어간다 (11/17 변경)
 """
 import re
 import sqlite3
@@ -195,13 +196,15 @@ def publish():
     if bad:
         return _fail(" ".join(bad), 400, problems=bad)
 
+    # 11/17 결정: 사용자 제보는 모두 관리자 승인 후 공개 (제목·아티스트 오기, AI 태그 오차를 사람이 한 번 확인)
+    # review_reason에는 자동 확인에서 걸린 사유만 적는다 → 관리자는 사유가 있는 곡을 더 꼼꼼히 본다
     reasons = []
     if st["views"]["status"] == "REVIEW":
         reasons.append(st["views"]["reason"])
     if st.get("audio_status") == "NOT_MUSIC":
         reasons.append("AI가 음악이 아닌 영상으로 판단")
-    status = "REVIEW" if reasons else "ACTIVE"
     is_admin = user["role"] == "ADMIN"
+    status = "ACTIVE" if is_admin and not reasons else "REVIEW"  # 관리자 등록은 자동 확인을 모두 통과하면 바로 공개
     origin_of, rejected = tagging.origins(tags, st["suggested"], "ADMIN" if is_admin else "USER")
     ai_moods = (st.get("ai") or {}).get("moods") or []
     web = st["web"]

@@ -16,6 +16,7 @@ import scoring
 import tag_rules
 from db import close_db, get_db
 from guards import admin_required, login_required
+from music import normalize
 
 
 app = Flask(__name__)
@@ -36,6 +37,8 @@ from mood import bp as mood_bp  # noqa: E402
 app.register_blueprint(mood_bp)
 from submit import bp as submit_bp  # noqa: E402
 app.register_blueprint(submit_bp)
+from admin_music import bp as admin_music_bp  # noqa: E402
+app.register_blueprint(admin_music_bp)
 
 
 # ---------------- 로그인 사용자 / 권한 ----------------
@@ -194,22 +197,51 @@ def admin():
         "review": db.execute("SELECT COUNT(*) FROM music WHERE status = 'REVIEW'").fetchone()[0],
         "tags": db.execute("SELECT COUNT(*) FROM tags").fetchone()[0],
     }
-    review = db.execute(
-        "SELECT m.id, m.video_id, m.title, m.artist, m.category, m.review_reason, m.created_at, u.nickname "
-        "FROM music m LEFT JOIN users u ON u.id = m.submitted_by WHERE m.status = 'REVIEW' ORDER BY m.id").fetchall()
-    return render_template("admin.html", stats=stats, review=review, categories=config.CATEGORIES)
+    rows = db.execute(
+        "SELECT m.id, m.video_id, m.title, m.artist, m.category, m.start_sec, m.intro, m.review_reason, "
+        "m.audio_status, m.web_status, m.discogs_url, m.created_at, u.nickname "
+        "FROM music m LEFT JOIN users u ON u.id = m.submitted_by WHERE m.status = 'REVIEW' "
+        "ORDER BY m.review_reason IS NULL, m.id").fetchall()  # 자동 확인에서 걸린 곡을 먼저
+    review = []
+    for m in rows:
+        tags = db.execute(
+            "SELECT t.axis, t.name, mt.origin, mt.accepted, mt.rank FROM music_tags mt JOIN tags t ON t.id = mt.tag_id "
+            "WHERE mt.music_id = ? ORDER BY t.axis, COALESCE(mt.rank, 9), t.sort", (m["id"],)).fetchall()
+        tags = sorted(tags, key=lambda t: list(ADMIN_AXIS_NAMES).index(t["axis"]))  # 분위기 → 장르 → … 순서로
+        review.append({"m": m, "tags": [t for t in tags if t["accepted"]], "off": [t for t in tags if not t["accepted"]]})
+    return render_template("admin.html", stats=stats, review=review, categories=config.CATEGORIES,
+                           axis_names=ADMIN_AXIS_NAMES)
+
+
+ADMIN_AXIS_NAMES = {"MOOD": "분위기", "GENRE": "장르", "SUBGENRE": "세부 장르", "ENERGY": "에너지",
+                    "SITUATION": "상황", "TIME": "시간·날씨", "INSTRUMENT": "악기"}
 
 
 @app.post("/admin/music/<int:music_id>/review")
 @admin_required
 def admin_review(music_id):
     """검토 대기 곡 승인(디깅 풀에 공개) 또는 숨김. CSRF는 before_request에서 검사"""
+    """승인할 때 제목·아티스트 오기를 고칠 수 있다 (정규화 값도 함께 갱신해 중복 판정이 맞게)"""
     action = request.form.get("action")
     if action not in ("approve", "hide"):
         abort(400)
     db = get_db()
-    cur = db.execute("UPDATE music SET status = ? WHERE id = ? AND status = 'REVIEW'",
-                     ("ACTIVE" if action == "approve" else "HIDDEN", music_id))
+    if action == "hide":
+        cur = db.execute("UPDATE music SET status = 'HIDDEN' WHERE id = ? AND status = 'REVIEW'", (music_id,))
+    else:
+        title = (request.form.get("title") or "").strip()
+        artist = (request.form.get("artist") or "").strip()
+        if not (0 < len(title) <= 100 and 0 < len(artist) <= 100 and normalize(title) and normalize(artist)):
+            flash("제목과 아티스트를 100자 이내로 입력해 주세요.", "error")
+            return redirect(url_for("admin"))
+        try:
+            cur = db.execute("UPDATE music SET status = 'ACTIVE', title = ?, artist = ?, title_norm = ?, artist_norm = ? "
+                             "WHERE id = ? AND status = 'REVIEW'",
+                             (title, artist, normalize(title), normalize(artist), music_id))
+        except sqlite3.IntegrityError:
+            db.rollback()
+            flash("고친 제목·아티스트와 같은 곡이 이미 있습니다. 중복이면 숨김을 눌러 주세요.", "error")
+            return redirect(url_for("admin"))
     db.commit()
     if cur.rowcount:
         flash("디깅 풀에 공개했습니다." if action == "approve" else "숨겼습니다.")

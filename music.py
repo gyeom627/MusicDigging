@@ -79,3 +79,28 @@ def song_tags(conn, music_id):
     out["genre"] = out["genre"][0] if out["genre"] else None
     out["energy"] = out["energy"][0] if out["energy"] else None
     return out
+
+
+def replace_tags(conn, music_id, tags, origin="ADMIN"):
+    """관리자 태그 수정 (커밋은 호출한 쪽에서). 기록은 지우지 않는다:
+    - 남는 태그: 출처는 그대로, 순위만 갱신 / 새로 넣은 태그: origin(ADMIN) / 뺀 태그: accepted = 0"""
+    ids = tag_ids(conn)
+    rows = {r["tag_id"]: r for r in conn.execute("SELECT tag_id, accepted FROM music_tags WHERE music_id = ?", (music_id,))}
+    keep = {}
+    for key, axis in AXIS_OF.items():
+        vals = tags.get(key) or []
+        if isinstance(vals, str):
+            vals = [vals]
+        for rank, name in enumerate(vals, 1):
+            if (axis, name) not in ids:
+                raise ValueError(f"목록에 없는 태그: {axis} {name}")
+            keep[ids[(axis, name)]] = rank if axis == "MOOD" else None
+    for tid, rank in keep.items():
+        if tid in rows:
+            conn.execute("UPDATE music_tags SET accepted = 1, rank = ? WHERE music_id = ? AND tag_id = ?", (rank, music_id, tid))
+        else:
+            conn.execute("INSERT INTO music_tags (music_id, tag_id, origin, accepted, rank) VALUES (?, ?, ?, 1, ?)",
+                         (music_id, tid, origin, rank))
+    for tid, r in rows.items():
+        if tid not in keep and r["accepted"]:
+            conn.execute("UPDATE music_tags SET accepted = 0, rank = NULL WHERE music_id = ? AND tag_id = ?", (music_id, tid))

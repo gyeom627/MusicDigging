@@ -131,7 +131,7 @@ class SubmitTest(unittest.TestCase):
         self.assertEqual(rows["어쿠스틱 기타"], ("AI", 0, None, None))  # 끈 추천은 accepted = 0
         self.assertEqual(rows["록"], ("AI", 0, None, None))
         self.assertEqual(rows["포크·어쿠스틱"], ("DISCOGS", 1, None, None))
-        self.assertEqual(tuple(song), ("ACTIVE", "DONE", "FOUND", uid))
+        self.assertEqual(tuple(song), ("REVIEW", "DONE", "FOUND", uid))  # 사용자 제보는 모두 관리자 승인 대기
         self.assertEqual(post(c, "/api/submit/publish", {**self.form(), "tags": tags}).status_code, 409)  # 세션 끝남
 
     def test_song_level_views_reject(self):
@@ -222,10 +222,27 @@ class SubmitTest(unittest.TestCase):
         a, _ = user("ADMIN")
         page = a.get("/admin").get_data(as_text=True)
         self.assertIn("승인곡", page)
-        a.post(f"/admin/music/{mid}/review", data={"action": "approve", "csrf_token": "tok"})
+        a.post(f"/admin/music/{mid}/review", data={"action": "approve", "csrf_token": "tok",
+                                                    "title": "승인곡", "artist": "가수H"})
         conn = db.get_db_connection()
         self.assertEqual(conn.execute("SELECT status FROM music WHERE id = ?", (mid,)).fetchone()[0], "ACTIVE")
         conn.close()
+
+    def test_admin_submission_goes_live_and_fix_on_approve(self):
+        a, _ = user("ADMIN")
+        d = self.flow(a, self.new_vid(), title="관리자곡", artist="가수I")
+        r = post(a, "/api/submit/publish", {**self.form("관리자곡", "가수I"), "tags": d["selected"]}).get_json()
+        self.assertEqual(r["status"], "ACTIVE")  # 관리자 등록 + 자동 확인 통과 → 바로 공개
+        c, _ = user()
+        d = self.flow(c, self.new_vid(), title="I'll Love The Evening(전역을 사랑하겠어)", artist="연정")
+        mid = post(c, "/api/submit/publish", {**self.form("I'll Love The Evening(전역을 사랑하겠어)", "연정"),
+                                              "tags": d["selected"]}).get_json()["music_id"]
+        a.post(f"/admin/music/{mid}/review", data={"action": "approve", "csrf_token": "tok",
+                                                    "title": "I'll Love The Evening (저녁을 사랑하겠어)", "artist": "연정"})
+        conn = db.get_db_connection()
+        row = conn.execute("SELECT status, title FROM music WHERE id = ?", (mid,)).fetchone()
+        conn.close()
+        self.assertEqual(tuple(row), ("ACTIVE", "I'll Love The Evening (저녁을 사랑하겠어)"))
 
     def test_highlight_must_fit(self):
         c, _ = user()

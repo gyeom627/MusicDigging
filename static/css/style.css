@@ -1,58 +1,74 @@
-:root {
-  --bg: #f7f6f2; --card: #ffffff; --ink: #1d1d1b; --sub: #6b6a64; --line: #e3e1da;
-  --accent: #2f5d50; --accent-ink: #ffffff; --warn: #a33a2b;
+/* 색 토큰: 기본(밝게)과 다크 두 가지. html[data-theme]로 바뀐다 */
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f2f7;        /* 페이지 바탕 */
+  --surface: #ffffff;   /* 카드·패널 */
+  --ink: #241d33;       /* 글자 */
+  --sub: #6c6580;       /* 보조 글자 */
+  --line: #dcd7e5;      /* 테두리 */
+  --sunk: #ebe7f2;      /* 들어간 바탕 (토글 틀) */
+  --raise: #e2dcec;     /* 보조 버튼 */
+  --accent: #4b3a7a;    /* 링크·기본 버튼 */
+  --accent-ink: #ffffff;
+  --brass: #d8a64a;     /* 매수 */
+  --on-brass: #2a1f08;
+  --redact-a: #ddd7e7; --redact-b: #d0c9de;
+  --note: #ebe7f2; --note-err: #f8e1e5; --warn: #a33a2b;
+  --glow-mix: 30%;      /* 분위기 빛 세기 */
 }
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1b1726;
+  --surface: #262036;
+  --ink: #f3eee6;
+  --sub: #a59fb3;
+  --line: #3a3350;
+  --sunk: #241e33;
+  --raise: #3a3350;
+  --accent: #c9b8f2;
+  --accent-ink: #1b1726;
+  --brass: #d8a64a;
+  --on-brass: #2a1f08;
+  --redact-a: #3d3554; --redact-b: #463d60;
+  --note: #2f2943; --note-err: #4a2430; --warn: #f0a39a;
+  --glow-mix: 42%;
+}
+
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
-       font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; line-height: 1.6; }
+       font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; line-height: 1.6;
+       transition: background-color 200ms, color 200ms; }
 a { color: var(--accent); }
 .top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 12px 20px;
-       background: var(--card); border-bottom: 1px solid var(--line); }
-.logo { font-weight: 800; font-size: 20px; text-decoration: none; color: var(--ink); letter-spacing: -0.5px; }
+       background: var(--bg); border-bottom: 1px solid var(--line); }
+.logo { font-weight: 700; font-size: 20px; text-decoration: none; color: var(--ink); letter-spacing: -0.5px; }
 nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 nav a { text-decoration: none; color: var(--ink); }
 .me { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 14px; }
-.tickets { background: var(--accent); color: var(--accent-ink); padding: 2px 10px; border-radius: 999px; }
+.tickets { background: var(--brass); color: var(--on-brass); padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+.theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;
+                border-radius: 999px; background: var(--sunk); color: var(--ink); border: 1px solid var(--line); }
+.theme-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle .moon { display: none; }
+[data-theme="dark"] .theme-toggle .sun { display: none; }
+[data-theme="dark"] .theme-toggle .moon { display: inline; }
 main { max-width: 760px; margin: 24px auto; padding: 0 16px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
 .card.narrow { max-width: 420px; margin: 0 auto; }
 h1 { margin: 0 0 8px; font-size: 22px; }
 .sub { color: var(--sub); }
 form { display: grid; gap: 12px; }
 label { display: grid; gap: 4px; font-weight: 600; }
 label small { font-weight: 400; color: var(--sub); }
-input { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+input { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
 button { font: inherit; padding: 10px 14px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button.link { background: none; color: var(--accent); padding: 0; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 form.inline { display: inline; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chips label { display: flex; gap: 6px; align-items: center; font-weight: 400; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
-.flash { background: #e8f0ec; border-radius: 8px; padding: 10px 14px; }
-.flash.error { background: #f7e6e3; color: var(--warn); }
+.flash { background: var(--note); border-radius: 8px; padding: 10px 14px; }
+.flash.error { background: var(--note-err); color: var(--warn); }
 .stats th { text-align: left; padding: 4px 24px 4px 0; color: var(--sub); font-weight: 400; }
 footer { max-width: 760px; margin: 40px auto 24px; padding: 0 16px; font-size: 12px; color: var(--sub); }
 
-/* ---- 디깅 플레이어 ---- */
-#dig-start, #dig-stage, .reveal { margin-top: 16px; }
-.player-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 200px; background: #000; border-radius: 10px; overflow: hidden; }
-.player-wrap iframe, .player-wrap #player { position: absolute; inset: 0; width: 100%; height: 100%; }
-.swipe-zone { margin-top: 12px; padding: 14px; border: 1px dashed var(--line); border-radius: 10px; touch-action: pan-y; user-select: none; outline: none; }
-.swipe-zone:focus { border-color: var(--accent); }
-.meta-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
-.pill { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 14px; }
-.mood-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.mood { border-radius: 999px; padding: 2px 10px; font-size: 14px; color: var(--accent-ink); background: var(--accent); }
-.mood.rank2 { opacity: .7; }
-.mood.rank3 { opacity: .45; }
-#timer { margin-left: auto; font-size: 14px; }
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-button.secondary { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
-.small { font-size: 13px; margin: 8px 0 0; }
-.reveal { padding: 16px; border-radius: 10px; background: #e8f0ec; }
-.reveal h2 { margin: 4px 0; font-size: 20px; }
-.reveal p { margin: 4px 0; }
-.badge { display: inline-block; background: #c58b2a; color: #fff; border-radius: 999px; padding: 2px 12px; font-size: 13px; }
-#mood { width: 100%; margin-top: 12px; }
-.reveal button { display: block; margin-top: 12px; }
-.reveal .badge { margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { body { transition: none; } }

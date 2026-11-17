@@ -1,49 +1,67 @@
 {% extends "base.html" %}
 {% block title %}디깅{% endblock %}
+{% block body_class %}booth-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dig.css') }}">{% endblock %}
 {% block content %}
-<section class="card">
-  <h1>오늘의 디깅</h1>
-  <p class="sub">하이라이트 1분을 듣고 마음에 들면 매수, 아니면 패스하세요. 제목과 아티스트는 매수한 뒤에 공개됩니다.</p>
-
-  <div class="chips" id="category-chips">
-    <label><input type="radio" name="category" value="ALL" checked> 전체</label>
-    {% for code, name in categories.items() %}
-      <label><input type="radio" name="category" value="{{ code }}"> {{ name }}</label>
-    {% endfor %}
-  </div>
-  <input id="mood" maxlength="100" placeholder="무드 문장 디깅은 AI 이식 단계에서 열립니다" disabled>
-
-  <div id="dig-start">
-    <button type="button" id="btn-start">디깅 시작</button>
-  </div>
-
-  <div id="dig-stage" hidden>
-    <div class="player-wrap"><div id="player"></div></div>
-    <div id="swipe-zone" class="swipe-zone" tabindex="0">
-      <div class="meta-row">
-        <span id="cat-label" class="pill"></span>
-        <span id="mood-chips" class="mood-chips"></span>
-        <span id="timer" class="sub"></span>
-      </div>
-      <div class="actions">
-        <button type="button" id="btn-pass" class="secondary">← 패스</button>
-        <button type="button" id="btn-buy">매수 →</button>
-      </div>
-      <p class="sub small">이 영역을 좌우로 밀거나 키보드 ←/→ 로도 고를 수 있습니다.</p>
+<section class="booth" id="booth" data-group="none" aria-label="디깅 플레이어">
+  <div class="booth-bar">
+    <div class="cats" role="radiogroup" aria-label="카테고리">
+      <button type="button" class="cat is-on" data-cat="ALL" role="radio" aria-checked="true">전체</button>
+      {% for code, name in categories.items() %}
+        <button type="button" class="cat" data-cat="{{ code }}" role="radio" aria-checked="false">{{ name }}</button>
+      {% endfor %}
+    </div>
+    <div class="mode" role="radiogroup" aria-label="재생 시작 위치">
+      <button type="button" class="mode-btn is-on" data-mode="highlight" role="radio" aria-checked="true">하이라이트부터</button>
+      <button type="button" class="mode-btn" id="btn-intro" data-mode="intro" role="radio" aria-checked="false">처음부터</button>
     </div>
   </div>
 
-  <div id="reveal" class="reveal" hidden>
-    <p class="sub small">매수 완료 — 공개된 곡 정보</p>
-    <h2 id="rv-title"></h2>
-    <p id="rv-artist"></p>
-    <p id="rv-meta" class="sub"></p>
-    <p id="rv-badge" class="badge" hidden>First Digger · 초기 발굴 (포인트 2배)</p>
-    <button type="button" id="btn-next">다음 곡</button>
+  <div class="stage">
+    <div class="screen"><div id="player"></div></div>
+    <div class="scrub" aria-hidden="true">
+      <div class="scrub-track">
+        <div class="scrub-band" id="scrub-band"></div>
+        <div class="scrub-fill" id="scrub-fill"></div>
+      </div>
+      <div class="scrub-time"><span id="t-now">0:00</span><span id="t-end">1:00</span></div>
+    </div>
   </div>
 
-  <p id="dig-msg" class="flash" hidden></p>
-  <p class="sub">남은 매수권: <strong id="tickets-left">{{ tickets_left }}</strong> / {{ daily_limit }}장</p>
+  <div class="deck" id="deck" tabindex="0" aria-describedby="deck-help">
+    <div class="deck-card" id="deck-card">
+      <div class="deck-top">
+        <span class="cat-tag" id="cat-tag"></span>
+        <button type="button" class="sound" id="btn-sound" hidden>소리 켜기</button>
+      </div>
+
+      <div class="sleeve" id="sleeve">
+        <p class="sleeve-title" id="sv-title"><span class="redact" style="width:62%"></span></p>
+        <p class="sleeve-artist" id="sv-artist"><span class="redact" style="width:34%"></span></p>
+        <p class="sleeve-note" id="sv-note">제목과 아티스트는 매수하면 공개돼요</p>
+      </div>
+
+      <ul class="moods" id="moods" aria-label="이 곡의 분위기 (1순위부터)"></ul>
+
+      <div class="moves">
+        <button type="button" class="move pass" id="btn-pass" aria-label="패스하고 다음 곡">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+          <span>넘기기</span>
+        </button>
+        <button type="button" class="move buy" id="btn-buy">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+          <span id="buy-label">매수</span>
+        </button>
+      </div>
+      <button type="button" class="next-after" id="btn-next" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        <span>다음 곡</span>
+      </button>
+    </div>
+    <p class="deck-help" id="deck-help">위로 밀면 다음 곡, 오른쪽으로 밀거나 두 번 탭하면 매수</p>
+    <p class="deck-keys" aria-hidden="true"><kbd>↓</kbd> 다음 곡 <kbd>→</kbd> 매수 <kbd>M</kbd> 소리 <kbd>H</kbd> 시작 위치</p>
+    <p class="deck-msg" id="deck-msg" role="status" hidden></p>
+  </div>
 </section>
 {% endblock %}
 {% block scripts %}

@@ -14,6 +14,7 @@ import scoring
 from db import get_db
 from guards import login_required
 from music import song_tags
+from tag_rules import MOOD_GROUP_OF
 
 bp = Blueprint("dig", __name__)
 _rng = secrets.SystemRandom()
@@ -48,9 +49,10 @@ def dig_next():
     pick = _rng.choice(candidates)
     session["dig_current"] = pick["id"]
     session["dig_last"] = pick["id"]
+    moods = song_tags(db, pick["id"])["moods"]
     return jsonify(ok=True, empty=False, video_id=pick["video_id"], start_sec=pick["start_sec"],
                    length=config.HIGHLIGHT_SEC, category=pick["category"],
-                   moods=song_tags(db, pick["id"])["moods"], tickets_left=tickets)
+                   moods=moods, mood_groups=[MOOD_GROUP_OF[m] for m in moods], tickets_left=tickets)
 
 
 @bp.post("/api/dig/buy")

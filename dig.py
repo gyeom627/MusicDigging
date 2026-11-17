@@ -16,7 +16,7 @@ import scoring
 from db import get_db
 from guards import login_required
 from music import song_tags
-from tag_rules import MOOD_GROUP_OF
+from tag_rules import GENRES, MOOD_GROUP_OF, MOOD_GROUPS, MOODS
 
 bp = Blueprint("dig", __name__)
 _rng = secrets.SystemRandom()
@@ -93,13 +93,65 @@ def _pool_stats(db, uid, category):
     )
 
 
+def _read_filter(data):
+    """요청의 카테고리·무드·장르를 고정 목록으로 검증. 잘못된 값이면 None"""
+    category = data.get("category", "ALL")
+    moods, genres = data.get("moods") or [], data.get("genres") or []
+    if category != "ALL" and category not in config.CATEGORIES:
+        return None
+    if not (isinstance(moods, list) and isinstance(genres, list)):
+        return None
+    if any(m not in MOODS for m in moods) or any(x not in GENRES for x in genres):
+        return None
+    return category, moods, genres
+
+
+def _pool_sql(uid, category, moods, genres):
+    """디깅 풀 조건: 공개된 곡 + 내가 매수·패스하지 않은 곡 + 카테고리 + 무드(하나라도) + 장르(하나라도)"""
+    sql = ("FROM music m WHERE m.status = 'ACTIVE'"
+           " AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.user_id = ? AND p.music_id = m.id)"
+           " AND NOT EXISTS (SELECT 1 FROM passes s WHERE s.user_id = ? AND s.music_id = m.id)")
+    params = [uid, uid]
+    if category != "ALL":
+        sql += " AND m.category = ?"
+        params.append(category)
+    for axis, names in (("MOOD", moods), ("GENRE", genres)):
+        if names:
+            sql += (" AND EXISTS (SELECT 1 FROM music_tags mt JOIN tags t ON t.id = mt.tag_id "
+                    f"WHERE mt.music_id = m.id AND mt.accepted = 1 AND t.axis = '{axis}' "
+                    f"AND t.name IN ({','.join('?' * len(names))}))")
+            params.extend(names)
+    return sql, params
+
+
+def _count(db, sql, params):
+    return db.execute("SELECT COUNT(*) " + sql, params).fetchone()[0]
+
+
+@bp.post("/api/dig/facets")
+@login_required
+def dig_facets():
+    """무드 서치 패널: 무드·장르별로 아직 안 들은 곡이 몇 곡인지, 지금 고른 조건이면 몇 곡인지"""
+    f = _read_filter(request.get_json(silent=True) or {})
+    if f is None:
+        return _fail("검색 조건이 올바르지 않습니다.", 400)
+    category, moods, genres = f
+    db, uid = get_db(), g.user["id"]
+    mood_opts = [dict(name=m, group=grp, n=_count(db, *_pool_sql(uid, category, [m], genres)))
+                 for grp, ms in MOOD_GROUPS.items() for m in ms]
+    genre_opts = [dict(name=x, n=_count(db, *_pool_sql(uid, category, moods, [x]))) for x in GENRES]
+    return jsonify(ok=True, moods=mood_opts, genres=genre_opts,
+                   matching=_count(db, *_pool_sql(uid, category, moods, genres)))
+
+
 @bp.post("/api/dig/next")
 @login_required
 def dig_next():
     data = request.get_json(silent=True) or {}
-    category = data.get("category", "ALL")
-    if category != "ALL" and category not in config.CATEGORIES:
-        return _fail("카테고리가 올바르지 않습니다.", 400)
+    f = _read_filter(data)
+    if f is None:
+        return _fail("카테고리나 검색 조건이 올바르지 않습니다.", 400)
+    category, moods, genres = f
     db, uid = get_db(), g.user["id"]
     tl, pos = _timeline()
     # 이전 곡으로 돌아가 있었다면 먼저 들었던 다음 곡으로 (카테고리를 바꾼 경우는 새로 뽑기)
@@ -109,14 +161,8 @@ def dig_next():
             return jsonify(payload)
         tl, pos = _timeline()
     tl = tl[:max(pos, -1) + 1]
-    sql = ("SELECT id FROM music m WHERE status = 'ACTIVE' "
-           "AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.user_id = ? AND p.music_id = m.id) "
-           "AND NOT EXISTS (SELECT 1 FROM passes s WHERE s.user_id = ? AND s.music_id = m.id)")
-    params = [uid, uid]
-    if category != "ALL":
-        sql += " AND category = ?"
-        params.append(category)
-    rows = [r["id"] for r in db.execute(sql, params).fetchall()]
+    sql, params = _pool_sql(uid, category, moods, genres)
+    rows = [r["id"] for r in db.execute("SELECT m.id " + sql, params).fetchall()]
     recent = set(tl)
     candidates = [r for r in rows if r not in recent] or rows  # 최근에 들은 곡은 되도록 피함
     if not candidates:

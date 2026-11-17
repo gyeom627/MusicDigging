@@ -233,6 +233,26 @@ class DigTest(unittest.TestCase):
         conn.close()
         self.assertEqual(n, 1)  # 한 사람은 한 번만 셈
 
+    def test_mood_genre_filter_and_facets(self):
+        conn = db.get_db_connection()
+        music.insert_song(conn, video_id="filt0000001", title="잔잔곡", artist="A", category="KR", start_sec=0,
+                                 tags={"moods": ["잔잔한"], "genre": "포크·어쿠스틱", "subgenres": [], "instruments": []})
+        music.insert_song(conn, video_id="filt0000002", title="강한곡", artist="B", category="KR", start_sec=0,
+                          tags={"moods": ["강렬한"], "genre": "록", "subgenres": [], "instruments": []})
+        conn.commit(); conn.close()
+        c = client_for(new_user("filter_u"))
+        f = post(c, "/api/dig/facets", {"moods": ["잔잔한"]}).get_json()
+        self.assertEqual(f["matching"], 1)
+        self.assertEqual({m["name"]: m["n"] for m in f["moods"]}["강렬한"], 1)  # 다른 무드 칸은 그 무드만 따로 셈
+        self.assertEqual({x["name"]: x["n"] for x in f["genres"]}["록"], 0)     # 잔잔한 + 록은 없음
+        d = post(c, "/api/dig/next", {"moods": ["잔잔한"], "fresh": True}).get_json()
+        self.assertEqual(d["video_id"], "filt0000001")
+        post(c, "/api/dig/pass")
+        self.assertTrue(post(c, "/api/dig/next", {"moods": ["잔잔한"], "fresh": True}).get_json()["empty"])
+        d = post(c, "/api/dig/next", {"genres": ["록"], "fresh": True}).get_json()
+        self.assertEqual(d["video_id"], "filt0000002")
+        self.assertEqual(post(c, "/api/dig/next", {"moods": ["없는무드"]}).status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

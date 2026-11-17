@@ -18,7 +18,16 @@
     activated: false,      // 사용자가 한 번이라도 누르면 소리를 켤 수 있음 (브라우저 자동재생 정책)
     busy: false,
     tickets: Number($("tickets-badge") ? $("tickets-badge").textContent : 0),
+    filter: loadFilter(),  // 무드 서치 조건 { moods: [], genres: [] }
   };
+
+  function loadFilter() {
+    try {
+      const f = JSON.parse(store.get("digger.filter", "{}"));
+      return { moods: Array.isArray(f.moods) ? f.moods : [], genres: Array.isArray(f.genres) ? f.genres : [] };
+    } catch (e) { return { moods: [], genres: [] }; }
+  }
+  const filterOn = (f) => f.moods.length + f.genres.length > 0;
   let player = null, playerReady = false, pendingLoad = null, pollId = null;
 
   // ---------- 서버 ----------
@@ -59,35 +68,46 @@
     return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
   }
 
-  function segment() {
-    const s = state.song;
-    const end = s.start_sec + s.length;
-    return { start: state.mode === "intro" ? 0 : s.start_sec, end };
+  // 곡 전체를 끝까지 재생한다. 시작 위치만 고른다: 하이라이트부터 / 처음부터
+  function startAt() {
+    return state.mode === "intro" ? 0 : state.song.start_sec;
   }
 
-  function paintScrub() {
+  function duration() {  // 지금 곡의 길이 (영상이 바뀌는 중이면 0)
+    if (!player || !playerReady || typeof player.getDuration !== "function") return 0;
+    const v = typeof player.getVideoData === "function" ? player.getVideoData() : null;
+    if (v && v.video_id && v.video_id !== state.song.video_id) return 0;
+    return player.getDuration() || 0;
+  }
+
+  function paintScrub() {  // 진행 바 = 곡 전체, 옅은 띠 = 하이라이트 1분
     const s = state.song;
     if (!s) return;
-    const seg = segment();
-    const span = seg.end - seg.start || 1;
+    const dur = duration();
     const band = $("scrub-band");
-    band.style.left = ((s.start_sec - seg.start) / span) * 100 + "%";  // 하이라이트 구간 표시
-    band.style.width = (s.length / span) * 100 + "%";
-    $("t-end").textContent = fmt(span);
+    band.hidden = !dur;
+    if (dur) {
+      band.style.left = (s.start_sec / dur) * 100 + "%";
+      band.style.width = (Math.min(s.length, dur - s.start_sec) / dur) * 100 + "%";
+    }
+    $("t-end").textContent = dur ? fmt(dur) : "-:--";
   }
 
   function tick() {
     if (!player || !playerReady || !state.song || typeof player.getCurrentTime !== "function") return;
-    const seg = segment();
-    const t = player.getCurrentTime() - seg.start;
-    const span = seg.end - seg.start || 1;
-    $("scrub-fill").style.width = Math.min(100, Math.max(0, (t / span) * 100)) + "%";
-    $("t-now").textContent = fmt(Math.min(span, t));
+    const dur = duration();
+    if (!dur) return;
+    if ($("t-end").textContent === "-:--") paintScrub();   // 길이를 처음 알게 된 순간
+    const t = player.getCurrentTime();
+    $("scrub-fill").style.width = Math.min(100, Math.max(0, (t / dur) * 100)) + "%";
+    $("t-now").textContent = fmt(Math.min(dur, t));
   }
 
   function renderSong(d) {
     $("booth").dataset.group = d.mood_groups[0] || "none";
-    $("cat-tag").textContent = CAT_NAME[d.category] || d.category;
+    $("cat-tag").textContent = catLabel(d.category);
+    $("scrub-fill").style.width = "0";
+    $("t-now").textContent = "0:00";
     const ul = $("moods");
     ul.textContent = "";
     d.moods.forEach((m, i) => {
@@ -107,6 +127,13 @@
     paintScrub();
   }
 
+  function catLabel(cat) {  // 카드 왼쪽 위: 곡의 카테고리 + 무드 서치 조건
+    const f = state.filter, picked = f.moods.concat(f.genres);
+    const name = cat === "ALL" ? "전체" : (CAT_NAME[cat] || cat);
+    if (!picked.length) return name;
+    return name + " · " + picked.slice(0, 2).join(", ") + (picked.length > 2 ? " 외 " + (picked.length - 2) : "");
+  }
+
   function cardTransition(fn, back) {  // 다음 곡은 위로, 이전 곡은 아래로 빠진다
     const card = $("deck-card");
     if (reduceMotion) { fn(); return; }
@@ -122,8 +149,7 @@
 
   // ---------- 재생 ----------
   function load() {
-    const seg = segment();
-    const opts = { videoId: state.song.video_id, startSeconds: seg.start, endSeconds: seg.end };
+    const opts = { videoId: state.song.video_id, startSeconds: startAt() };
     if (!playerReady) { pendingLoad = opts; return; }
     if (!state.activated) player.mute();
     player.loadVideoById(opts);
@@ -139,7 +165,7 @@
     });
     if (state.song && state.phase !== "empty") {
       paintScrub();
-      if (playerReady) { player.seekTo(segment().start, true); player.playVideo(); }
+      if (playerReady) { player.seekTo(startAt(), true); player.playVideo(); }
     }
   }
 
@@ -160,7 +186,8 @@
       if (!p.ok && p.error) { say(p.error, true); }
     }
     state.phase = "loading";
-    const d = await api("/api/dig/next", { category: state.category, fresh: !!(opts && opts.fresh) });
+    const d = await api("/api/dig/next", { category: state.category, moods: state.filter.moods,
+                                           genres: state.filter.genres, fresh: !!(opts && opts.fresh) });
     state.busy = false;
     if (!d.ok) { say(d.error || "다음 곡을 불러오지 못했습니다.", true); state.phase = "empty"; return; }
     setTickets(d.tickets_left);
@@ -201,10 +228,15 @@
     $("mode").hidden = true;
     $("btn-sound").hidden = true;
     const all = state.category === "ALL";
-    $("cat-tag").textContent = all ? "전체" : (CAT_NAME[state.category] || state.category);
+    const filtered = filterOn(state.filter);
+    $("cat-tag").textContent = catLabel(state.category);
     const passed = st.passed || 0, bought = st.bought || 0;
     state.passedCount = passed;
-    if (st.active === 0) {          // 들은 게 아니라 풀 자체가 비어 있음
+    if (filtered) {                  // 무드 서치 조건 안에서 다 들음
+      $("empty-title").textContent = "고른 무드·장르의 곡을 모두 들었어요";
+      $("empty-body").textContent = "조건을 풀거나 바꾸면 다른 곡을 계속 디깅할 수 있어요."
+        + (passed > 0 ? " 넘긴 곡을 다시 들을 수도 있어요." : "");
+    } else if (st.active === 0) {   // 들은 게 아니라 풀 자체가 비어 있음
       $("empty-title").textContent = all ? "디깅 풀에 아직 곡이 없어요" : "이 카테고리에는 아직 곡이 없어요";
       $("empty-body").textContent = "곡이 등록되면 바로 디깅할 수 있어요. 알고 있는 숨은 곡을 제보해 주세요.";
     } else {
@@ -214,7 +246,8 @@
     }
     $("btn-reset").hidden = passed === 0;
     $("btn-reset").textContent = "넘긴 곡 " + passed + "곡 다시 듣기";
-    $("btn-to-all").hidden = all;
+    $("btn-to-all").hidden = all || filtered;
+    $("btn-unfilter").hidden = !filtered;
   }
 
   function showSong() {
@@ -270,11 +303,12 @@
   function setCategory(cat) {
     state.category = cat;
     store.set("digger.cat", cat);
-    document.querySelectorAll(".cat").forEach((b) => {
+    document.querySelectorAll(".cat[data-cat]").forEach((b) => {
       const on = b.dataset.cat === cat;
       b.classList.toggle("is-on", on);
       b.setAttribute("aria-checked", on);
     });
+    if (draft) loadFacets();                // 무드 서치를 연 채로 카테고리를 바꾸면 숫자도 새로
     next({ skipPass: true, fresh: true });  // 카테고리를 바꾼 것은 곡을 평가한 것이 아니므로 패스로 기록하지 않음
   }
 
@@ -308,6 +342,87 @@
     if (state.phase === "listening") say("재생할 수 없는 영상이라 다음 곡으로 넘어왔어요.");
   }
 
+  // ---------- 무드 서치 ----------
+  let draft = null, facetSeq = 0;
+  const panel = $("filter-panel");
+
+  function paintFilterButton() {
+    const n = state.filter.moods.length + state.filter.genres.length;
+    $("filter-count").textContent = n ? " " + n : "";
+    $("btn-filter").classList.toggle("is-set", n > 0);
+  }
+
+  function chip(name, n, picked, axis, group) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "fchip";
+    b.dataset.axis = axis;
+    b.dataset.name = name;
+    if (group) b.dataset.g = group;
+    b.setAttribute("aria-pressed", picked);
+    b.disabled = !picked && n === 0;   // 남은 곡이 없는 칸은 고를 수 없게 (이미 고른 칸은 풀 수 있게)
+    b.textContent = name;
+    const small = document.createElement("small");
+    small.textContent = n;
+    b.appendChild(small);
+    b.addEventListener("click", () => {
+      const list = draft[axis];
+      const i = list.indexOf(name);
+      if (i >= 0) list.splice(i, 1); else list.push(name);
+      loadFacets();
+    });
+    return b;
+  }
+
+  async function loadFacets() {
+    const seq = ++facetSeq;
+    const d = await api("/api/dig/facets", { category: state.category, moods: draft.moods, genres: draft.genres });
+    if (seq !== facetSeq || !draft) return;   // 그사이 더 새 요청이 있었으면 무시
+    if (!d.ok) { say(d.error || "무드 목록을 불러오지 못했습니다.", true); return; }
+    const box = $("f-moods");
+    box.textContent = "";
+    const groups = {};
+    d.moods.forEach((m) => { (groups[m.group] = groups[m.group] || []).push(m); });
+    Object.keys(groups).forEach((g) => {
+      const row = document.createElement("div");
+      row.className = "fgroup";
+      const label = document.createElement("p");
+      label.className = "fgroup-name";
+      label.textContent = g;
+      const chips = document.createElement("div");
+      chips.className = "fchips";
+      groups[g].forEach((m) => chips.appendChild(chip(m.name, m.n, draft.moods.includes(m.name), "moods", g)));
+      row.append(label, chips);
+      box.appendChild(row);
+    });
+    const gbox = $("f-genres");
+    gbox.textContent = "";
+    d.genres.forEach((x) => gbox.appendChild(chip(x.name, x.n, draft.genres.includes(x.name), "genres")));
+    const apply = $("filter-apply");
+    apply.disabled = d.matching === 0;
+    apply.textContent = d.matching === 0 ? "조건에 맞는 새 곡이 없어요"
+      : (filterOn(draft) ? "이 조건으로 디깅 (" + d.matching + "곡)" : "전체에서 디깅 (" + d.matching + "곡)");
+  }
+
+  function openFilter(open) {
+    panel.hidden = !open;
+    $("btn-filter").setAttribute("aria-expanded", open);
+    if (open) {
+      draft = { moods: state.filter.moods.slice(), genres: state.filter.genres.slice() };
+      loadFacets();
+    } else {
+      draft = null;
+    }
+  }
+
+  function applyFilter(f) {
+    state.filter = f;
+    store.set("digger.filter", JSON.stringify(f));
+    paintFilterButton();
+    openFilter(false);
+    next({ skipPass: true, fresh: true });   // 조건을 바꾼 것은 곡을 평가한 것이 아니므로 패스로 기록하지 않음
+  }
+
   // ---------- YouTube 플레이어 ----------
   window.onYouTubeIframeAPIReady = function () {
     player = new YT.Player("player", {
@@ -324,7 +439,7 @@
         onStateChange: (e) => {
           if (e.data === YT.PlayerState.PLAYING) errorStreak = 0;  // 한 곡이라도 재생되면 정상
           if (e.data === YT.PlayerState.ENDED && state.phase === "listening") {
-            say("미리듣기가 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
+            say("곡이 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
           }
         },
       },
@@ -397,13 +512,18 @@
   $("btn-sound").addEventListener("click", activate);
   $("btn-to-all").addEventListener("click", () => setCategory("ALL"));
   $("btn-reset").addEventListener("click", resetPasses);
-  document.querySelectorAll(".cat").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
+  $("btn-unfilter").addEventListener("click", () => applyFilter({ moods: [], genres: [] }));
+  $("btn-filter").addEventListener("click", () => openFilter(panel.hidden));
+  $("filter-clear").addEventListener("click", () => { draft = { moods: [], genres: [] }; loadFacets(); });
+  $("filter-apply").addEventListener("click", () => applyFilter(draft));
+  document.querySelectorAll(".cat[data-cat]").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
   document.querySelectorAll(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
   // ---------- 시작: 들어오자마자 첫 곡 ----------
   setTickets(state.tickets);
   setMode(state.mode);
-  document.querySelectorAll(".cat").forEach((b) => {
+  paintFilterButton();
+  document.querySelectorAll(".cat[data-cat]").forEach((b) => {
     const on = b.dataset.cat === state.category;
     b.classList.toggle("is-on", on);
     b.setAttribute("aria-checked", on);

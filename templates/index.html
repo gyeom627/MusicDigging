@@ -11,7 +11,28 @@
         <button type="button" class="cat" data-cat="{{ code }}" role="radio" aria-checked="false">{{ name }}</button>
       {% endfor %}
     </div>
+    <button type="button" class="cat filter-btn" id="btn-filter" aria-expanded="false" aria-controls="filter-panel">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      <span id="filter-label">무드<span class="fl-long"> 서치</span><span id="filter-count"></span></span>
+    </button>
   </div>
+
+  <!-- 무드 서치: 무드·장르를 고르면 그 조건 안에서만 무작위로 디깅. 영상 위가 아니라 카드 위쪽에 펼쳐진다 -->
+  <section class="filter-panel" id="filter-panel" hidden aria-label="무드와 장르로 디깅하기">
+    <div class="filter-head">
+      <p class="filter-title">무드</p>
+      <p class="filter-hint">여러 개를 고르면 하나라도 맞는 곡이 나와요</p>
+    </div>
+    <div id="f-moods"></div>
+    <div class="filter-head">
+      <p class="filter-title">장르</p>
+    </div>
+    <div class="fchips" id="f-genres"></div>
+    <div class="filter-foot">
+      <button type="button" class="link" id="filter-clear">모두 해제</button>
+      <button type="button" class="move buy" id="filter-apply">이 조건으로 디깅</button>
+    </div>
+  </section>
 
   <!-- 플레잉 카드: 영상·진행 바·곡 정보·버튼을 한 장에. 영상 위에는 아무것도 겹치지 않는다 (YouTube 정책) -->
   <article class="player-card" id="deck" tabindex="0" aria-describedby="deck-help">
@@ -32,7 +53,7 @@
             <div class="scrub-band" id="scrub-band"></div>
             <div class="scrub-fill" id="scrub-fill"></div>
           </div>
-          <div class="scrub-time"><span id="t-now">0:00</span><span id="t-end">1:00</span></div>
+          <div class="scrub-time"><span id="t-now">0:00</span><span id="t-end">-:--</span></div>
         </div>
       </div>
 
@@ -64,6 +85,7 @@
         <p class="empty-body" id="empty-body"></p>
         <div class="empty-actions">
           <button type="button" class="move buy wide" id="btn-reset" hidden>넘긴 곡 다시 듣기</button>
+          <button type="button" class="move pass" id="btn-unfilter" hidden>무드 서치 풀기</button>
           <button type="button" class="move pass" id="btn-to-all">전체에서 디깅하기</button>
           <a class="move pass" href="{{ url_for('submit') }}">새 곡 제보하기</a>
         </div>

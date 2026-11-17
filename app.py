@@ -1,19 +1,21 @@
 """
 Digger — 음악 디깅·저점매수 서비스 (3회차)
-지금 단계: 가입·로그인·권한, 화면 골격, 배포 확인용 /health
-다음 단계: 곡·시드 → 디깅 → 매수·매수권 → 포트폴리오 → 게시판 → 곡 등록(12주차 AI 이식)
+11주차: 가입·로그인·권한, 화면 골격, 배포 확인용 /health
+12주차: 곡 시드, 디깅 플레이어(dig.py), 매수·매수권
+다음 단계: 포트폴리오 → 곡 등록(AI 추천 이식) → 게시판
 """
 import re
 import secrets
 import sqlite3
-from functools import wraps
 
 from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
 import scoring
-from db import get_db_connection
+from db import close_db, get_db
+from guards import admin_required, login_required
+
 
 app = Flask(__name__)
 if config.SECRET_KEY:
@@ -25,20 +27,10 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
                   MAX_CONTENT_LENGTH=64 * 1024)
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,20}$")
+app.teardown_appcontext(close_db)
 
-
-# ---------------- DB 연결: 요청마다 하나, 끝나면 닫기 ----------------
-def get_db():
-    if "db" not in g:
-        g.db = get_db_connection()
-    return g.db
-
-
-@app.teardown_appcontext
-def close_db(_exc):
-    db = g.pop("db", None)
-    if db is not None:
-        db.close()
+from dig import bp as dig_bp  # noqa: E402  (app 설정 뒤에 등록)
+app.register_blueprint(dig_bp)
 
 
 # ---------------- 로그인 사용자 / 권한 ----------------
@@ -50,27 +42,6 @@ def load_user():
         g.user = get_db().execute("SELECT id, username, nickname, role FROM users WHERE id = ?", (uid,)).fetchone()
         if g.user is None:  # 삭제된 계정의 세션
             session.clear()
-
-
-def login_required(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        if g.user is None:
-            if request.path.startswith("/api/"):
-                return jsonify(ok=False, error="로그인이 필요합니다."), 401
-            return redirect(url_for("login", next=request.path))
-        return view(*args, **kwargs)
-    return wrapped
-
-
-def admin_required(view):
-    @wraps(view)
-    @login_required
-    def wrapped(*args, **kwargs):
-        if g.user["role"] != "ADMIN":
-            abort(403)
-        return view(*args, **kwargs)
-    return wrapped
 
 
 # ---------------- CSRF: 폼은 hidden 필드, fetch는 X-CSRFToken 헤더 ----------------

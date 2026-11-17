@@ -32,3 +32,27 @@ form.inline { display: inline; }
 .flash.error { background: #f7e6e3; color: var(--warn); }
 .stats th { text-align: left; padding: 4px 24px 4px 0; color: var(--sub); font-weight: 400; }
 footer { max-width: 760px; margin: 40px auto 24px; padding: 0 16px; font-size: 12px; color: var(--sub); }
+
+/* ---- 디깅 플레이어 ---- */
+#dig-start, #dig-stage, .reveal { margin-top: 16px; }
+.player-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 200px; background: #000; border-radius: 10px; overflow: hidden; }
+.player-wrap iframe, .player-wrap #player { position: absolute; inset: 0; width: 100%; height: 100%; }
+.swipe-zone { margin-top: 12px; padding: 14px; border: 1px dashed var(--line); border-radius: 10px; touch-action: pan-y; user-select: none; outline: none; }
+.swipe-zone:focus { border-color: var(--accent); }
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.pill { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 14px; }
+.mood-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.mood { border-radius: 999px; padding: 2px 10px; font-size: 14px; color: var(--accent-ink); background: var(--accent); }
+.mood.rank2 { opacity: .7; }
+.mood.rank3 { opacity: .45; }
+#timer { margin-left: auto; font-size: 14px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+button.secondary { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+.small { font-size: 13px; margin: 8px 0 0; }
+.reveal { padding: 16px; border-radius: 10px; background: #e8f0ec; }
+.reveal h2 { margin: 4px 0; font-size: 20px; }
+.reveal p { margin: 4px 0; }
+.badge { display: inline-block; background: #c58b2a; color: #fff; border-radius: 999px; padding: 2px 12px; font-size: 13px; }
+#mood { width: 100%; margin-top: 12px; }
+.reveal button { display: block; margin-top: 12px; }
+.reveal .badge { margin-top: 6px; }

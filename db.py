@@ -42,3 +42,18 @@ def init_db(path=None):
         return conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0]
     finally:
         conn.close()
+
+
+# ---------------- Flask 요청용: 요청마다 연결 하나, 끝나면 닫기 ----------------
+def get_db():
+    from flask import g
+    if "db" not in g:
+        g.db = get_db_connection()
+    return g.db
+
+
+def close_db(_exc=None):
+    from flask import g
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()

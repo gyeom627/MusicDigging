@@ -5,7 +5,8 @@ Gemini가 곡의 하이라이트를 직접 듣고 무드 태그를 추천하고,
 
 - 스택: Python Flask · SQLite · Jinja2 · Google Gemini API (google-genai)
 - 배포: PythonAnywhere (무료)
-- 현재 단계: 가입·로그인·권한, 화면 골격, DB 스키마(11개 테이블)·고정 태그 100개, 배포 확인용 `/health`
+- 11주차: 가입·로그인·권한, 화면 골격, DB 스키마(11개 테이블)·고정 태그 100개, 배포 확인용 `/health`
+- 12주차: 시드 곡 12곡, 디깅 플레이어(블라인드 1분 재생·매수·패스·재생 오류 보고), 매수 트랜잭션·하루 매수권 10장
 
 ## 1. 로컬 실행 (Windows)
 ```
@@ -16,6 +17,7 @@ pip install -r requirements.txt
 copy .env.example .env            :: 메모장으로 열어 값 채우기 (FLASK_SECRET_KEY, GEMINI_API_KEY 등)
 python manage.py init-db          :: 테이블 + 태그 100개
 python manage.py create-admin     :: 관리자 계정
+python scripts\seed_songs.py      :: 시드 곡 넣기 (data/seed_songs.csv, 여러 번 실행해도 안전)
 python -m unittest discover tests -v
 python app.py                     :: http://127.0.0.1:5000
 ```
@@ -43,9 +45,13 @@ schema.sql      테이블 11개
 config.py       정책 상수(매수권 10, 조회수 100만 등), .env 로드
 tag_rules.py    고정 태그 100개, Gemini JSON 스키마·프롬프트, 응답 검증, 무드 매칭 점수
 scoring.py      매수권(한국 시간 자정 초기화) — 포인트·랭킹·뱃지 추가 예정
+dig.py          디깅 API: /api/dig/next·buy·pass·error
+music.py        곡 저장·태그 조회·정규화(중복 판정)
+guards.py       로그인·관리자 데코레이터
+data/           seed_songs.csv (검증 때 확정한 태그)
 manage.py       init-db, create-admin
 scripts/        check_apis.py (서버에서 외부 API 연결 점검)
-tests/          test_smoke.py
+tests/          test_smoke.py, test_dig.py (동시 매수·매수권 초과·블라인드 등)
 ```
 
 ## 4. 보안 규칙

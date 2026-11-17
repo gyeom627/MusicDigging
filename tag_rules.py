@@ -36,6 +36,19 @@ GENRES = list(GENRE_TREE)
 SUBGENRES = [s for ss in GENRE_TREE.values() for s in ss]
 PARENT_OF = {s: g for g, ss in GENRE_TREE.items() for s in ss}
 
+# 장르 대분류 이웃 (양방향). 대분류가 달라도 이웃이면 매칭 부분 점수 — 11/10 오차 분석 결과 반영
+_NEIGHBOR_PAIRS = [
+    ("발라드", "팝"), ("발라드", "포크·어쿠스틱"), ("발라드", "록"), ("발라드", "R&B·소울"),
+    ("팝", "록"), ("팝", "포크·어쿠스틱"), ("팝", "R&B·소울"), ("팝", "일렉트로닉"), ("팝", "서브컬처"),
+    ("록", "포크·어쿠스틱"), ("록", "재즈·블루스"), ("록", "서브컬처"),
+    ("R&B·소울", "힙합"), ("R&B·소울", "재즈·블루스"),
+    ("힙합", "일렉트로닉"), ("일렉트로닉", "서브컬처"),
+]
+GENRE_NEIGHBORS = {g: set() for g in GENRE_TREE}
+for _a, _b in _NEIGHBOR_PAIRS:
+    GENRE_NEIGHBORS[_a].add(_b)
+    GENRE_NEIGHBORS[_b].add(_a)
+
 # 1차 테스트(구 목록) → 새 목록 변환표 (migrate_songs.py, 서비스 DB 이전에 사용)
 OLD_GENRE_MAP = {"댄스·팝": "팝", "재즈": "재즈·블루스"}
 OLD_SITUATION_MAP = {"이동 중": "출퇴근·이동"}
@@ -59,7 +72,7 @@ MOOD_QUERY_LIMITS = {  # 사용자 무드 문장 해석
 # 무드 매칭 가중치 (설계 보고서 4.8)
 MOOD_RANK_POINTS = {1: 3, 2: 2, 3: 1}
 MOOD_SAME_GROUP_POINT = 1
-WEIGHTS = {"situations": 2, "times": 2, "genre": 2, "subgenres": 1, "energy": 1, "instruments": 1}
+WEIGHTS = {"situations": 2, "times": 2, "genre": 2, "genre_neighbor": 1, "subgenres": 1, "energy": 1, "instruments": 1}
 
 
 # ---------------- JSON 스키마 ----------------
@@ -208,6 +221,8 @@ def match_score(query, song):
         score += WEIGHTS[axis] * len(set(query.get(axis, [])) & set(song.get(axis, [])))
     if query.get("genre") and query["genre"] == song.get("genre"):
         score += WEIGHTS["genre"]
+    elif query.get("genre") and song.get("genre") in GENRE_NEIGHBORS[query["genre"]]:
+        score += WEIGHTS["genre_neighbor"]  # 이웃 장르는 적게(1점)
     if query.get("energy") and query["energy"] == song.get("energy"):
         score += WEIGHTS["energy"]
     return score

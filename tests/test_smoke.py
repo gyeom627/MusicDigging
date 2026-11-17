@@ -46,7 +46,7 @@ class SkeletonTest(unittest.TestCase):
         r = self.signup("flow_user", "흐름")
         self.assertEqual(r.status_code, 302)
         page = self.client.get("/").get_data(as_text=True)
-        self.assertIn("매수권 10/10", page)
+        self.assertIn('id="tickets-badge">10</span>/10', page)
         t = token(self.client, "/")
         self.client.post("/logout", data={"csrf_token": t})
         self.assertEqual(self.client.get("/").status_code, 302)  # 로그인 필요

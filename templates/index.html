@@ -3,17 +3,50 @@
 {% block content %}
 <section class="card">
   <h1>오늘의 디깅</h1>
-  <p class="sub">카테고리를 고르고, 원하면 듣고 싶은 무드를 문장으로 적어 보세요. 제목과 아티스트는 매수한 뒤에 공개됩니다.</p>
-  <form id="dig-form" onsubmit="return false">
-    <div class="chips">
-      <label><input type="radio" name="category" value="ALL" checked> 전체</label>
-      {% for code, name in categories.items() %}
-        <label><input type="radio" name="category" value="{{ code }}"> {{ name }}</label>
-      {% endfor %}
+  <p class="sub">하이라이트 1분을 듣고 마음에 들면 매수, 아니면 패스하세요. 제목과 아티스트는 매수한 뒤에 공개됩니다.</p>
+
+  <div class="chips" id="category-chips">
+    <label><input type="radio" name="category" value="ALL" checked> 전체</label>
+    {% for code, name in categories.items() %}
+      <label><input type="radio" name="category" value="{{ code }}"> {{ name }}</label>
+    {% endfor %}
+  </div>
+  <input id="mood" maxlength="100" placeholder="무드 문장 디깅은 AI 이식 단계에서 열립니다" disabled>
+
+  <div id="dig-start">
+    <button type="button" id="btn-start">디깅 시작</button>
+  </div>
+
+  <div id="dig-stage" hidden>
+    <div class="player-wrap"><div id="player"></div></div>
+    <div id="swipe-zone" class="swipe-zone" tabindex="0">
+      <div class="meta-row">
+        <span id="cat-label" class="pill"></span>
+        <span id="mood-chips" class="mood-chips"></span>
+        <span id="timer" class="sub"></span>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-pass" class="secondary">← 패스</button>
+        <button type="button" id="btn-buy">매수 →</button>
+      </div>
+      <p class="sub small">이 영역을 좌우로 밀거나 키보드 ←/→ 로도 고를 수 있습니다.</p>
     </div>
-    <input name="mood" maxlength="100" placeholder="예: 밤에 산책할 때 듣기 좋은 노래 (선택)">
-    <button type="button" disabled>디깅 시작 (다음 단계에서 구현)</button>
-  </form>
-  <p class="sub">남은 매수권: <strong>{{ tickets_left }}</strong> / {{ daily_limit }}장</p>
+  </div>
+
+  <div id="reveal" class="reveal" hidden>
+    <p class="sub small">매수 완료 — 공개된 곡 정보</p>
+    <h2 id="rv-title"></h2>
+    <p id="rv-artist"></p>
+    <p id="rv-meta" class="sub"></p>
+    <p id="rv-badge" class="badge" hidden>First Digger · 초기 발굴 (포인트 2배)</p>
+    <button type="button" id="btn-next">다음 곡</button>
+  </div>
+
+  <p id="dig-msg" class="flash" hidden></p>
+  <p class="sub">남은 매수권: <strong id="tickets-left">{{ tickets_left }}</strong> / {{ daily_limit }}장</p>
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dig.js') }}"></script>
+<script src="https://www.youtube.com/iframe_api" async></script>
 {% endblock %}

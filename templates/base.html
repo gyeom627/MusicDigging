@@ -20,7 +20,7 @@
     </nav>
     <div class="me">
       {% if g.user %}
-        <span class="tickets" title="한국 시간 자정에 다시 채워집니다">매수권 {{ tickets_left }}/{{ daily_limit }}</span>
+        <span class="tickets" title="한국 시간 자정에 다시 채워집니다">매수권 <span id="tickets-badge">{{ tickets_left }}</span>/{{ daily_limit }}</span>
         <span>{{ g.user['nickname'] }}</span>
         <form method="post" action="{{ url_for('logout') }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

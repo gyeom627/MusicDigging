@@ -15,7 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import config
 import scoring
 import tag_rules
-from db import close_db, get_db
+from db import close_db, get_db, init_db
 from guards import admin_required, login_required
 from music import normalize, song_tags
 from tag_rules import MOOD_GROUP_OF
@@ -42,6 +42,10 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,20}$")
 app.teardown_appcontext(close_db)
+
+# 서버가 켜질 때 스키마를 한 번 적용한다 (CREATE TABLE IF NOT EXISTS라 기존 데이터는 그대로).
+# git pull로 새 테이블이 생겨도 init-db를 잊어서 500이 나는 일이 없게 (13주차 playlist_hidden 때 발생)
+init_db()
 
 from dig import bp as dig_bp  # noqa: E402  (app 설정 뒤에 등록)
 app.register_blueprint(dig_bp)

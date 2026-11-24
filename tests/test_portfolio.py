@@ -129,6 +129,32 @@ class PointsTest(unittest.TestCase):
         self.assertIn("아직 들을 곡이 없어요", page)
         self.assertNotIn("iframe_api", page)
 
+    def test_hide_from_playlist_keeps_points(self):
+        uid, other = user(), user()
+        a, b = song(25), song(3)
+        buy(uid, a, 4)
+        buy(uid, b, 1)
+        c = app.test_client()
+        with c.session_transaction() as s:
+            s["user_id"] = uid
+            s["csrf"] = "tok"
+        c.post(f"/portfolio/{a}/playlist", data={"action": "hide", "csrf_token": "tok"})
+        page = c.get("/playlist").get_data(as_text=True)
+        data = json.loads(re.search(r'id="pl-data">(.*?)</script>', page, re.S).group(1))
+        self.assertEqual([x["id"] for x in data["songs"]], [b])            # 뺀 곡은 플레이리스트에서 빠짐
+        pf = c.get("/portfolio").get_data(as_text=True)
+        self.assertIn('<span class="big">42</span>', pf)                   # 포인트는 그대로 (40 + 2)
+        self.assertIn("플레이리스트에서 뺀 곡 1곡", pf)
+        c.post(f"/portfolio/{a}/playlist", data={"action": "show", "csrf_token": "tok"})
+        self.assertNotIn("플레이리스트에서 뺀 곡", c.get("/portfolio").get_data(as_text=True))
+        r = c.post("/api/playlist/hide", json={"music_id": b}, headers={"X-CSRFToken": "tok"})
+        self.assertTrue(r.get_json()["ok"])
+        # 남의 곡·매수하지 않은 곡은 뺄 수 없음
+        other_song = song(1)
+        buy(other, other_song, 0)
+        r = c.post("/api/playlist/hide", json={"music_id": other_song}, headers={"X-CSRFToken": "tok"})
+        self.assertEqual(r.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

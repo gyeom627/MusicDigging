@@ -121,10 +121,37 @@
       b.append(n, t, a);
       if (p === state.pos) b.setAttribute("aria-current", "true");
       b.addEventListener("click", () => { activate(); go(p, p < state.pos); });
-      li.appendChild(b);
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "q-x";
+      x.textContent = "빼기";
+      x.title = "플레이리스트에서 빼기 (포인트·매수 기록은 그대로, 포트폴리오에서 다시 넣을 수 있어요)";
+      x.setAttribute("aria-label", s.title + " 플레이리스트에서 빼기");
+      x.addEventListener("click", () => removeAt(p));
+      li.append(b, x);
       ol.appendChild(li);
     });
     $("queue-sub").textContent = state.queue.length + "곡 · " + (state.order === "shuffle" ? "셔플" : "매수 순서");
+  }
+
+  async function removeAt(p) {  // 듣기 싫은 곡을 플레이리스트에서 뺀다 (서버에 기록 → 다음에 와도 빠져 있음)
+    const idx = state.queue[p];
+    const s = songs[idx];
+    let d;
+    try {
+      const res = await fetch("/api/playlist/hide", { method: "POST", body: JSON.stringify({ music_id: s.id }),
+        headers: { "Content-Type": "application/json",
+                   "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content } });
+      d = await res.json();
+    } catch (e) { d = { ok: false }; }
+    if (!d.ok) { say(d.error || "빼지 못했어요. 다시 시도해 주세요.", true); return; }
+    if (state.queue.length === 1) { location.reload(); return; }   // 마지막 곡을 빼면 빈 화면으로
+    const wasNow = p === state.pos;
+    state.queue.splice(p, 1);
+    if (p < state.pos) state.pos -= 1;
+    if (state.pos >= state.queue.length) state.pos = 0;
+    say("'" + s.title + "'을(를) 플레이리스트에서 뺐어요. 포트폴리오에서 다시 넣을 수 있어요.");
+    if (wasNow) go(state.pos, false); else { $("pos").textContent = (state.pos + 1) + " / " + state.queue.length; paintQueue(); }
   }
 
   function transition(fn, back) {

@@ -73,3 +73,16 @@
   .songs td.act { grid-column: 2; grid-row: 2 / span 3; align-self: center; }
   .songs .pts small { display: inline; }
 }
+
+/* 플레이리스트에서 빼기 */
+.act { white-space: nowrap; }
+.pl-form { display: inline; }
+.pl-hide { font: inherit; font-size: 12px; padding: 6px 8px; background: transparent; color: var(--sub); border-radius: 999px; }
+.pl-hide:hover { color: var(--warn); }
+.pl-hidden { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.pl-hidden summary { cursor: pointer; font-size: 14px; font-weight: 500; }
+.pl-hidden ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.pl-hidden li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.pl-hidden form { display: block; }
+.pl-show { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; background: var(--raise); color: var(--ink); white-space: nowrap; }
+@media (max-width: 640px) { .songs td.act { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; } }

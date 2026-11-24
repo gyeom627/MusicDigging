@@ -180,7 +180,8 @@ def portfolio():
     sort = request.args.get("sort", "recent")
     rows = db.execute(
         "SELECT p.count_at_buy, p.is_early, p.created_at AS bought_at, m.id, m.video_id, m.title, m.artist, m.category, "
-        "m.start_sec, m.intro, m.buy_count, m.status, m.discogs_url "
+        "m.start_sec, m.intro, m.buy_count, m.status, m.discogs_url, "
+        "EXISTS (SELECT 1 FROM playlist_hidden h WHERE h.user_id = p.user_id AND h.music_id = m.id) AS pl_hidden "
         "FROM purchases p JOIN music m ON m.id = p.music_id WHERE p.user_id = ? ORDER BY p.id DESC", (uid,)).fetchall()
     songs = []
     for r in rows:
@@ -195,7 +196,9 @@ def portfolio():
     likes = scoring.likes_received(db, uid)
     stats = {"points": points, "likes": likes, "score": points + likes, "bought": len(songs),
              "early": sum(1 for x in songs if x["is_early"])}
-    return render_template("portfolio.html", songs=songs, stats=stats, sort=sort,
+    shown = [x for x in songs if not x["pl_hidden"]]
+    hidden = [x for x in songs if x["pl_hidden"]]
+    return render_template("portfolio.html", songs=shown, hidden=hidden, stats=stats, sort=sort,
                            badges=scoring.badges(db, uid, points), categories=config.CATEGORIES,
                            early_limit=config.EARLY_BUYER_LIMIT, weight=config.EARLY_WEIGHT)
 
@@ -209,17 +212,53 @@ def playlist():
     rows = db.execute(
         "SELECT p.count_at_buy, p.is_early, m.id, m.video_id, m.title, m.artist, m.category, m.start_sec, m.intro "
         "FROM purchases p JOIN music m ON m.id = p.music_id WHERE p.user_id = ? AND m.status = 'ACTIVE' "
+        "AND NOT EXISTS (SELECT 1 FROM playlist_hidden h WHERE h.user_id = p.user_id AND h.music_id = m.id) "
         "ORDER BY p.id", (uid,)).fetchall()
     songs = []
     for r in rows:
         tags = song_tags(db, r["id"])
-        songs.append({"video_id": r["video_id"], "title": r["title"], "artist": r["artist"],
+        songs.append({"id": r["id"], "video_id": r["video_id"], "title": r["title"], "artist": r["artist"],
                       "category": config.CATEGORIES.get(r["category"], r["category"]), "start_sec": r["start_sec"],
                       "intro": r["intro"], "rank": r["count_at_buy"] + 1, "early": bool(r["is_early"]),
                       "genre": tags["genre"], "moods": tags["moods"],
                       "groups": [MOOD_GROUP_OF[m] for m in tags["moods"]]})
     order = "shuffle" if request.args.get("order") == "shuffle" else "bought"
     return render_template("playlist.html", songs=songs, order=order, length=config.HIGHLIGHT_SEC)
+
+
+def _set_playlist_hidden(db, uid, music_id, hide):
+    """내가 매수한 곡만 뺄 수 있다. 반환: 처리했는지"""
+    if not db.execute("SELECT 1 FROM purchases WHERE user_id = ? AND music_id = ?", (uid, music_id)).fetchone():
+        return False
+    if hide:
+        db.execute("INSERT OR IGNORE INTO playlist_hidden (user_id, music_id) VALUES (?, ?)", (uid, music_id))
+    else:
+        db.execute("DELETE FROM playlist_hidden WHERE user_id = ? AND music_id = ?", (uid, music_id))
+    db.commit()
+    return True
+
+
+@app.post("/portfolio/<int:music_id>/playlist")
+@login_required
+def portfolio_playlist(music_id):
+    """포트폴리오에서 플레이리스트 빼기·다시 넣기 (매수 기록과 포인트는 그대로)"""
+    hide = request.form.get("action") == "hide"
+    if _set_playlist_hidden(get_db(), g.user["id"], music_id, hide):
+        flash("플레이리스트에서 뺐어요. 포인트와 매수 기록은 그대로예요." if hide else "플레이리스트에 다시 넣었어요.")
+    return redirect(url_for("portfolio", sort=request.args.get("sort", "recent")))
+
+
+@app.post("/api/playlist/hide")
+@login_required
+def api_playlist_hide():
+    """플레이리스트 화면에서 지금 목록의 곡 빼기"""
+    try:
+        music_id = int((request.get_json(silent=True) or {}).get("music_id"))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="곡을 찾을 수 없어요."), 400
+    if not _set_playlist_hidden(get_db(), g.user["id"], music_id, True):
+        return jsonify(ok=False, error="매수한 곡만 뺄 수 있어요."), 404
+    return jsonify(ok=True)
 
 
 @app.route("/board")

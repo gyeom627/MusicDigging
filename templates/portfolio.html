@@ -51,7 +51,9 @@
       <p class="pf-now" id="pf-now"></p>
     </div>
 
-    {% if not songs %}
+    {% if not songs and hidden %}
+      <p class="sub">플레이리스트에 남은 곡이 없어요. 아래에서 뺀 곡을 다시 넣을 수 있어요.</p>
+    {% elif not songs %}
       <div class="pf-empty">
         <p>아직 매수한 곡이 없어요.</p>
         <a class="pf-go" href="{{ url_for('index') }}">디깅하러 가기</a>
@@ -80,12 +82,33 @@
             <button type="button" class="play" data-video="{{ s.video_id }}" data-start="{{ s.start_sec }}"
                     data-name="{{ s.title }} · {{ s.artist }}">듣기</button>
             {% endif %}
+            <form method="post" action="{{ url_for('portfolio_playlist', music_id=s.id, sort=sort) }}" class="pl-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" name="action" value="hide" class="pl-hide" title="플레이리스트에서 빼기 (포인트·매수 기록은 그대로)">빼기</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-    {% if songs|selectattr('discogs_url')|list %}<p class="sub credit">장르 일부는 Discogs 데이터입니다. Data provided by Discogs.</p>{% endif %}
+    {% if songs|selectattr('discogs_url')|list or hidden|selectattr('discogs_url')|list %}<p class="sub credit">장르 일부는 Discogs 데이터입니다. Data provided by Discogs.</p>{% endif %}
+    {% endif %}
+
+    {% if hidden %}
+    <details class="pl-hidden">
+      <summary>플레이리스트에서 뺀 곡 {{ hidden|length }}곡 <span class="sub">· 포인트와 매수 기록은 그대로예요</span></summary>
+      <ul>
+        {% for s in hidden %}
+        <li>
+          <span><strong>{{ s.title }}</strong> <span class="sub">{{ s.artist }} · {{ s.rank }}번째 → {{ s.buy_count }}회 · {{ s.points }}점</span></span>
+          <form method="post" action="{{ url_for('portfolio_playlist', music_id=s.id, sort=sort) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" name="action" value="show" class="pl-show">다시 넣기</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
     {% endif %}
   </section>
 </div>

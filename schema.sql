@@ -78,6 +78,14 @@ CREATE TABLE IF NOT EXISTS passes (
     PRIMARY KEY (user_id, music_id)
 );
 
+-- 플레이리스트에서 뺀 곡: 매수 기록과 포인트는 그대로, 이어 듣기에서만 빠진다 (13주차 추가)
+CREATE TABLE IF NOT EXISTS playlist_hidden (
+    user_id    INTEGER NOT NULL REFERENCES users (id),
+    music_id   INTEGER NOT NULL REFERENCES music (id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, music_id)
+);
+
 -- 재생 오류 보고: 한 사람은 한 곡에 한 번만 셈 (넘긴 곡을 다시 들어도 중복으로 세지 않게)
 CREATE TABLE IF NOT EXISTS error_reports (
     user_id    INTEGER NOT NULL REFERENCES users (id),

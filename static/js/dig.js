@@ -39,6 +39,7 @@
   const filterOn = (f) => f.moods.length + f.genres.length > 0;
   const searchOn = () => filterOn(state.filter) || !!state.query;
   let player = null, playerReady = false, pendingLoad = null, pollId = null;
+  let endedFor = null;   // 이미 '곡 끝' 처리한 영상 (이벤트와 확인이 겹쳐도 한 번만 넘어가게)
 
   // ---------- 서버 ----------
   async function api(path, body) {
@@ -111,6 +112,23 @@
     const t = player.getCurrentTime();
     $("scrub-fill").style.width = Math.min(100, Math.max(0, (t / dur) * 100)) + "%";
     $("t-now").textContent = fmt(Math.min(dur, t));
+    // ENDED 이벤트를 놓치는 경우(탭이 뒤에 있을 때 등)를 대비해 상태를 직접 확인
+    if (typeof player.getPlayerState === "function" && player.getPlayerState() === YT.PlayerState.ENDED) onEnded();
+  }
+
+  function onEnded() {  // 곡이 끝까지 재생됨
+    if (!state.song || endedFor === state.song.video_id) return;
+    if (state.phase !== "listening" && state.phase !== "revealed") return;
+    endedFor = state.song.video_id;
+    if (state.autoNext) {
+      // 끝까지 들은 것은 '판단'이 아니므로 패스로 기록하지 않는다 → 나중에 디깅에서 다시 만날 수 있고,
+      // 아래로 밀면(이전 곡) 바로 돌아가 매수할 수도 있다
+      next({ skipPass: true }).then(() => {
+        if (state.phase === "listening") say("앞 곡이 끝나서 다음 곡으로 넘어왔어요. 아래로 밀면 앞 곡으로 돌아가요.");
+      });
+    } else if (state.phase === "listening") {
+      say("곡이 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
+    }
   }
 
   function renderSong(d) {
@@ -167,6 +185,7 @@
 
   // ---------- 재생 ----------
   function load() {
+    endedFor = null;
     const opts = { videoId: state.song.video_id, startSeconds: startAt() };
     if (!playerReady) { pendingLoad = opts; return; }
     if (!state.activated) player.mute();
@@ -527,17 +546,7 @@
         onError: (e) => onPlayerError(e.data),
         onStateChange: (e) => {
           if (e.data === YT.PlayerState.PLAYING) errorStreak = 0;  // 한 곡이라도 재생되면 정상
-          if (e.data === YT.PlayerState.ENDED && (state.phase === "listening" || state.phase === "revealed")) {
-            if (state.autoNext) {
-              // 끝까지 들은 것은 '판단'이 아니므로 패스로 기록하지 않는다 → 나중에 디깅에서 다시 만날 수 있고,
-              // 아래로 밀면(이전 곡) 바로 돌아가 매수할 수도 있다
-              next({ skipPass: true }).then(() => {
-                if (state.phase === "listening") say("앞 곡이 끝나서 다음 곡으로 넘어왔어요. 아래로 밀면 앞 곡으로 돌아가요.");
-              });
-            } else if (state.phase === "listening") {
-              say("곡이 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
-            }
-          }
+          if (e.data === YT.PlayerState.ENDED) onEnded();
         },
       },
     });
@@ -607,10 +616,13 @@
   $("btn-next").addEventListener("click", () => next());
   $("btn-buy").addEventListener("click", buy);
   $("btn-sound").addEventListener("click", activate);
-  $("auto-next").checked = state.autoNext;
-  $("auto-next").addEventListener("change", (e) => {
-    state.autoNext = e.target.checked;
+  $("auto-next").setAttribute("aria-checked", state.autoNext);
+  $("auto-next").addEventListener("click", (e) => {   // 진행 바 옆 스위치: 곡이 끝나면 자동으로 다음 곡
+    e.stopPropagation();
+    state.autoNext = !state.autoNext;
+    e.currentTarget.setAttribute("aria-checked", state.autoNext);
     store.set("digger.autonext", state.autoNext ? "1" : "0");
+    endedFor = null;   // 이미 끝난 곡에서 켜면 다음 확인 때 바로 넘어감
   });
   $("btn-to-all").addEventListener("click", () => setCategory("ALL"));
   $("btn-reset").addEventListener("click", resetPasses);

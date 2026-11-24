@@ -34,12 +34,12 @@
       </div>
       <div class="stage">
         <div class="screen"><div id="player"></div></div>
-        <div class="scrub" aria-hidden="true">
-          <div class="scrub-track">
+        <div class="scrub">
+          <div class="scrub-track" aria-hidden="true">
             <div class="scrub-band" id="scrub-band"></div>
             <div class="scrub-fill" id="scrub-fill"></div>
           </div>
-          <div class="scrub-time"><span id="t-now">0:00</span><span id="t-end">-:--</span></div>
+          <div class="scrub-time"><span id="t-now">0:00</span><button type="button" class="autoplay" id="auto-next" role="switch" aria-checked="true" title="곡이 끝나면 자동으로 다음 곡"><span class="ap-track" aria-hidden="true"></span>자동 다음 곡</button><span id="t-end">-:--</span></div>
         </div>
       </div>
       <div class="song">
@@ -61,7 +61,6 @@
     </div>
   </article>
   <p class="deck-msg" id="deck-msg" role="status" hidden></p>
-  <label class="auto-next"><input type="checkbox" id="auto-next"> <span>곡이 끝나면 자동으로 다음 곡</span></label>
   <p class="deck-help" id="deck-help">위로 밀면 다음 곡, 아래로 밀면 이전 곡</p>
   <p class="deck-keys" aria-hidden="true"><kbd>휠↓</kbd><kbd>↓</kbd> 다음 곡 <kbd>휠↑</kbd><kbd>↑</kbd> 이전 곡 <kbd>S</kbd> 셔플 <kbd>M</kbd> 소리</p>
 

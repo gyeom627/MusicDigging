@@ -4,6 +4,7 @@ Digger — 음악 디깅·저점매수 서비스 (3회차)
 12주차: 곡 시드, 디깅 플레이어(dig.py), 매수·매수권
 다음 단계: 포트폴리오 → 곡 등록(AI 추천 이식) → 게시판
 """
+import os
 import re
 import secrets
 import sqlite3
@@ -21,6 +22,16 @@ from tag_rules import MOOD_GROUP_OF
 
 
 app = Flask(__name__)
+
+
+@app.url_defaults
+def static_version(endpoint, values):
+    """url_for('static', ...)에 ?v=파일 수정 시각을 붙인다. git pull로 파일이 바뀌면 브라우저가 새로 받는다"""
+    if endpoint == "static" and "filename" in values:
+        try:
+            values["v"] = int(os.stat(os.path.join(app.static_folder, values["filename"])).st_mtime)
+        except OSError:
+            pass
 if config.SECRET_KEY:
     app.secret_key = config.SECRET_KEY
 else:  # 로컬 개발용. 배포에서는 반드시 FLASK_SECRET_KEY를 설정한다(재시작마다 로그인이 풀림)

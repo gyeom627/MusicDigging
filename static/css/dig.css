@@ -244,11 +244,17 @@
 .queue-list li.is-now .q-n { color: var(--brass); }
 .queue-list li.is-done button { color: var(--sub); }
 
-/* 자동 다음 곡 스위치 */
-.auto-next { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 12px 0 0; font-size: 13px; font-weight: 400; color: var(--sub); cursor: pointer; }
-.auto-next input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background 150ms; margin: 0; padding: 0; border: 0; }
-.auto-next input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform 150ms; }
-.auto-next input:checked { background: var(--brass); }
-.auto-next input:checked::after { transform: translateX(14px); }
-.auto-next input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 자동 다음 곡: 진행 바 시간 사이의 작은 스위치 (재생 조작이라 플레이어 옆에) */
+.scrub-time { align-items: center; }
+.autoplay {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px; margin: 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--sub); font: inherit; font-size: 12px; cursor: pointer;
+}
+.ap-track { position: relative; width: 26px; height: 15px; border-radius: 999px; background: color-mix(in srgb, var(--sub) 40%, transparent); transition: background 150ms; flex: none; }
+.ap-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: transform 150ms; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.autoplay[aria-checked="true"] { color: var(--ink); }
+.autoplay[aria-checked="true"] .ap-track { background: var(--brass); }
+.autoplay[aria-checked="true"] .ap-track::after { transform: translateX(11px); }
+.autoplay:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ap-track, .ap-track::after { transition: none; } }
 .booth .deck-help { margin-top: 6px; }

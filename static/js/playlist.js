@@ -20,6 +20,7 @@
     autoNext: store.get("digger.plauto", "1") === "1",
   };
   let player = null, ready = false, pending = null;
+  let endedFor = null;   // 이미 '곡 끝' 처리한 재생 위치 (이벤트와 확인이 겹쳐도 한 번만 넘어가게)
 
   function say(text, isError) {
     const el = $("deck-msg");
@@ -141,6 +142,7 @@
 
   // ---------- 재생 ----------
   function load() {
+    endedFor = null;
     const s = now();
     const opts = { videoId: s.video_id, startSeconds: state.mode === "highlight" ? s.start_sec : 0 };
     if (!ready) { pending = opts; return; }
@@ -196,6 +198,14 @@
     const t = player.getCurrentTime();
     $("scrub-fill").style.width = Math.min(100, Math.max(0, (t / dur) * 100)) + "%";
     $("t-now").textContent = fmt(Math.min(dur, t));
+    // ENDED 이벤트를 놓치는 경우(탭이 뒤에 있을 때 등)를 대비해 상태를 직접 확인
+    if (typeof player.getPlayerState === "function" && player.getPlayerState() === YT.PlayerState.ENDED) onEnded();
+  }
+
+  function onEnded() {
+    if (endedFor === state.pos) return;
+    endedFor = state.pos;
+    if (state.autoNext) next(true); else say("곡이 끝났어요. 위로 밀면 다음 곡이에요.");
   }
 
   window.onYouTubeIframeAPIReady = function () {
@@ -211,9 +221,7 @@
         },
         onStateChange: (e) => {
           if (e.data === YT.PlayerState.PLAYING) state.errors = 0;
-          if (e.data === YT.PlayerState.ENDED) {   // 곡이 끝나면 다음 곡 (끄면 그 자리에서 멈춤)
-            if (state.autoNext) next(true); else say("곡이 끝났어요. 위로 밀면 다음 곡이에요.");
-          }
+          if (e.data === YT.PlayerState.ENDED) onEnded();   // 곡이 끝나면 다음 곡 (끄면 그 자리에서 멈춤)
         },
         onError: (e) => {  // 재생이 안 되는 곡은 건너뛴다. 연달아 실패하면 멈추고 알림
           state.errors += 1;
@@ -271,10 +279,13 @@
   $("btn-next2").addEventListener("click", () => next(false));
   $("btn-prev").addEventListener("click", prev);
   $("btn-sound").addEventListener("click", activate);
-  $("auto-next").checked = state.autoNext;
-  $("auto-next").addEventListener("change", (e) => {
-    state.autoNext = e.target.checked;
+  $("auto-next").setAttribute("aria-checked", state.autoNext);
+  $("auto-next").addEventListener("click", (e) => {   // 진행 바 옆 스위치: 곡이 끝나면 자동으로 다음 곡
+    e.stopPropagation();
+    state.autoNext = !state.autoNext;
+    e.currentTarget.setAttribute("aria-checked", state.autoNext);
     store.set("digger.plauto", state.autoNext ? "1" : "0");
+    endedFor = null;
   });
   document.querySelectorAll(".cat[data-order]").forEach((b) => b.addEventListener("click", () => {
     if (b.dataset.order === state.order && b.dataset.order !== "shuffle") return;

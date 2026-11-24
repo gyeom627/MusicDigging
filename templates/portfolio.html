@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}포트폴리오{% endblock %}
+{% block body_class %}portfolio-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio.css') }}">{% endblock %}
+{% block content %}
+<div class="pf">
+  <header class="pf-head">
+    <p class="pf-name">{{ g.user['nickname'] }}의 포트폴리오</p>
+    <div class="pf-score">
+      <p class="pf-points"><span class="big">{{ stats.points }}</span> 디깅 포인트</p>
+      <p class="sub">랭킹 점수 {{ stats.score }} = 포인트 {{ stats.points }} + 받은 공감 {{ stats.likes }}</p>
+    </div>
+    <dl class="pf-facts">
+      <div><dt>매수한 곡</dt><dd>{{ stats.bought }}</dd></div>
+      <div><dt>초기 발굴</dt><dd>{{ stats.early }}</dd></div>
+    </dl>
+  </header>
+
+  <section class="pf-block" aria-labelledby="badge-h">
+    <h2 id="badge-h">뱃지</h2>
+    <ul class="badges">
+      {% for b in badges %}
+        <li class="badge{% if b.earned %} is-on{% endif %}">
+          <p class="badge-name">{{ b.name }}</p>
+          <p class="badge-desc">{{ b.desc }}</p>
+          {% if not b.earned %}<p class="badge-progress">{{ b.progress }}</p>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="pf-block" aria-labelledby="songs-h">
+    <div class="pf-row">
+      <h2 id="songs-h">매수한 곡</h2>
+      {% if songs %}
+      <nav class="sort" aria-label="정렬">
+        <a href="{{ url_for('portfolio') }}" class="{% if sort != 'points' %}is-on{% endif %}">최근 매수</a>
+        <a href="{{ url_for('portfolio', sort='points') }}" class="{% if sort == 'points' %}is-on{% endif %}">포인트 높은 순</a>
+      </nav>
+      {% endif %}
+    </div>
+    <p class="sub how">포인트 = (지금 누적 매수 − 내가 산 직전 누적 매수 − 1) × {{ weight }}(초기 발굴) 또는 × 1. 내가 산 뒤에 다른 사람이 많이 살수록 오릅니다.</p>
+
+    <!-- 듣기: 한 번에 한 곡, 화면에 보이는 플레이어로만 재생 (YouTube 정책) -->
+    <div class="pf-player" id="pf-player" hidden>
+      <div class="screen"><div id="player"></div></div>
+      <p class="pf-now" id="pf-now"></p>
+    </div>
+
+    {% if not songs %}
+      <div class="pf-empty">
+        <p>아직 매수한 곡이 없어요.</p>
+        <a class="pf-go" href="{{ url_for('index') }}">디깅하러 가기</a>
+      </div>
+    {% else %}
+    <table class="songs">
+      <thead>
+        <tr><th>곡</th><th>장르</th><th class="num">매수 당시 → 지금</th><th class="num">포인트</th><th>매수일</th><th><span class="sr">듣기</span></th></tr>
+      </thead>
+      <tbody>
+        {% for s in songs %}
+        <tr{% if s.status != 'ACTIVE' %} class="is-off"{% endif %}>
+          <td class="song" data-label="곡">
+            <strong>{{ s.title }}</strong>
+            <span class="artist">{{ s.artist }} · {{ categories[s.category] }}</span>
+            {% if s.is_early %}<span class="fd">First Digger</span>{% endif %}
+            {% if s.intro %}<span class="intro">“{{ s.intro }}”</span>{% endif %}
+            {% if s.status != 'ACTIVE' %}<span class="off-note">지금은 디깅 풀에서 빠진 곡이에요</span>{% endif %}
+          </td>
+          <td data-label="장르">{{ s.genre or '-' }}{% if s.subgenres %}<span class="sub-g"> · {{ s.subgenres|join(', ') }}</span>{% endif %}</td>
+          <td class="num" data-label="매수 당시 → 지금">{{ s.rank }}번째 → {{ s.buy_count }}회</td>
+          <td class="num pts" data-label="포인트">{{ s.points }}{% if s.is_early and s.grown %}<small> ({{ s.grown }} × {{ weight }})</small>{% endif %}</td>
+          <td data-label="매수일">{{ s.bought_kst }}</td>
+          <td class="act">
+            {% if s.status == 'ACTIVE' %}
+            <button type="button" class="play" data-video="{{ s.video_id }}" data-start="{{ s.start_sec }}"
+                    data-name="{{ s.title }} · {{ s.artist }}">듣기</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if songs|selectattr('discogs_url')|list %}<p class="sub credit">장르 일부는 Discogs 데이터입니다. Data provided by Discogs.</p>{% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if songs %}
+<script src="{{ url_for('static', filename='js/portfolio.js') }}"></script>
+<script src="https://www.youtube.com/iframe_api" async></script>
+{% endif %}
+{% endblock %}

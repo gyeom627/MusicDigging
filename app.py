@@ -16,7 +16,7 @@ import scoring
 import tag_rules
 from db import close_db, get_db
 from guards import admin_required, login_required
-from music import normalize
+from music import normalize, song_tags
 
 
 app = Flask(__name__)
@@ -162,7 +162,30 @@ def placeholder(title, desc):
 @app.route("/portfolio")
 @login_required
 def portfolio():
-    return placeholder("포트폴리오", "매수한 곡, 매수 당시 → 현재 누적 매수 수, 디깅 포인트, 뱃지가 여기에 나옵니다.")
+    """내 포트폴리오: 디깅 포인트·뱃지·매수한 곡 표 (설계 4.1 매수 후 공개 정보, 4.3 포인트, 4.4 뱃지)
+    포인트는 저장하지 않고 지금 기록으로 계산한다. 매수한 곡만 제목·아티스트를 보여 준다"""
+    db, uid = get_db(), g.user["id"]
+    sort = request.args.get("sort", "recent")
+    rows = db.execute(
+        "SELECT p.count_at_buy, p.is_early, p.created_at AS bought_at, m.id, m.video_id, m.title, m.artist, m.category, "
+        "m.start_sec, m.intro, m.buy_count, m.status, m.discogs_url "
+        "FROM purchases p JOIN music m ON m.id = p.music_id WHERE p.user_id = ? ORDER BY p.id DESC", (uid,)).fetchall()
+    songs = []
+    for r in rows:
+        tags = song_tags(db, r["id"])
+        songs.append({**dict(r), "genre": tags["genre"], "subgenres": tags["subgenres"], "moods": tags["moods"],
+                      "rank": r["count_at_buy"] + 1, "grown": max(0, r["buy_count"] - r["count_at_buy"] - 1),
+                      "points": scoring.purchase_points(r["buy_count"], r["count_at_buy"], r["is_early"]),
+                      "bought_kst": scoring.to_kst(r["bought_at"])})
+    if sort == "points":
+        songs.sort(key=lambda x: (-x["points"], -x["buy_count"]))
+    points = sum(x["points"] for x in songs)
+    likes = scoring.likes_received(db, uid)
+    stats = {"points": points, "likes": likes, "score": points + likes, "bought": len(songs),
+             "early": sum(1 for x in songs if x["is_early"])}
+    return render_template("portfolio.html", songs=songs, stats=stats, sort=sort,
+                           badges=scoring.badges(db, uid, points), categories=config.CATEGORIES,
+                           early_limit=config.EARLY_BUYER_LIMIT, weight=config.EARLY_WEIGHT)
 
 
 @app.route("/board")

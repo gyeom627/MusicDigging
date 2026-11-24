@@ -17,6 +17,7 @@ import tag_rules
 from db import close_db, get_db
 from guards import admin_required, login_required
 from music import normalize, song_tags
+from tag_rules import MOOD_GROUP_OF
 
 
 app = Flask(__name__)
@@ -186,6 +187,28 @@ def portfolio():
     return render_template("portfolio.html", songs=songs, stats=stats, sort=sort,
                            badges=scoring.badges(db, uid, points), categories=config.CATEGORIES,
                            early_limit=config.EARLY_BUYER_LIMIT, weight=config.EARLY_WEIGHT)
+
+
+@app.route("/playlist")
+@login_required
+def playlist():
+    """매수한 곡 전체 듣기: 매수 순서대로 또는 셔플. 디깅 카드와 같은 플레이어 (매수한 곡이라 정보는 공개)
+    디깅 풀에서 빠진(숨김) 곡은 재생하지 않는다"""
+    db, uid = get_db(), g.user["id"]
+    rows = db.execute(
+        "SELECT p.count_at_buy, p.is_early, m.id, m.video_id, m.title, m.artist, m.category, m.start_sec, m.intro "
+        "FROM purchases p JOIN music m ON m.id = p.music_id WHERE p.user_id = ? AND m.status = 'ACTIVE' "
+        "ORDER BY p.id", (uid,)).fetchall()
+    songs = []
+    for r in rows:
+        tags = song_tags(db, r["id"])
+        songs.append({"video_id": r["video_id"], "title": r["title"], "artist": r["artist"],
+                      "category": config.CATEGORIES.get(r["category"], r["category"]), "start_sec": r["start_sec"],
+                      "intro": r["intro"], "rank": r["count_at_buy"] + 1, "early": bool(r["is_early"]),
+                      "genre": tags["genre"], "moods": tags["moods"],
+                      "groups": [MOOD_GROUP_OF[m] for m in tags["moods"]]})
+    order = "shuffle" if request.args.get("order") == "shuffle" else "bought"
+    return render_template("playlist.html", songs=songs, order=order, length=config.HIGHLIGHT_SEC)
 
 
 @app.route("/board")

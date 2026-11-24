@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}내 플레이리스트{% endblock %}
+{% block body_class %}booth-page playlist-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dig.css') }}">{% endblock %}
+{% block content %}
+<section class="booth" id="booth" data-group="none" aria-label="매수한 곡 플레이리스트">
+  <div class="booth-bar">
+    <div class="cats" role="radiogroup" aria-label="재생 순서">
+      <button type="button" class="cat" data-order="bought" role="radio" aria-checked="false">매수 순서</button>
+      <button type="button" class="cat" data-order="shuffle" role="radio" aria-checked="false">셔플</button>
+    </div>
+    <a class="cat pl-back" href="{{ url_for('portfolio') }}">포트폴리오</a>
+  </div>
+
+  {% if not songs %}
+  <article class="player-card">
+    <div class="empty">
+      <p class="empty-title">아직 들을 곡이 없어요</p>
+      <p class="empty-body">디깅에서 마음에 드는 곡을 매수하면 여기서 모아 들을 수 있어요.</p>
+      <div class="empty-actions"><a class="move buy wide" href="{{ url_for('index') }}">디깅하러 가기</a></div>
+    </div>
+  </article>
+  {% else %}
+  <!-- 디깅과 같은 플레잉 카드. 영상 위에는 아무것도 겹치지 않는다 (YouTube 정책) -->
+  <article class="player-card" id="deck" tabindex="0" aria-describedby="deck-help">
+    <div class="deck-card" id="deck-card">
+      <div class="deck-top">
+        <div class="mode" id="mode" role="radiogroup" aria-label="재생 시작 위치">
+          <button type="button" class="mode-btn" data-mode="intro" role="radio" aria-checked="false">처음부터</button>
+          <button type="button" class="mode-btn" id="btn-hl" data-mode="highlight" role="radio" aria-checked="false">하이라이트부터</button>
+        </div>
+        <span class="cat-tag" id="pos">1 / {{ songs|length }}</span>
+        <button type="button" class="sound" id="btn-sound" hidden>소리 켜기</button>
+      </div>
+      <div class="stage">
+        <div class="screen"><div id="player"></div></div>
+        <div class="scrub" aria-hidden="true">
+          <div class="scrub-track">
+            <div class="scrub-band" id="scrub-band"></div>
+            <div class="scrub-fill" id="scrub-fill"></div>
+          </div>
+          <div class="scrub-time"><span id="t-now">0:00</span><span id="t-end">-:--</span></div>
+        </div>
+      </div>
+      <div class="song">
+        <div class="sleeve" id="sleeve">
+          <p class="sleeve-title" id="sv-title"></p>
+          <p class="sleeve-artist" id="sv-artist"></p>
+          <p class="rank-line" id="sv-line"></p>
+        </div>
+        <ul class="moods" id="moods" aria-label="이 곡의 분위기 (1순위부터)"></ul>
+        <div class="moves pl-moves">
+          <button type="button" class="move pass" id="btn-prev" aria-label="이전 곡">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>이전</span>
+          </button>
+          <button type="button" class="move buy" id="btn-next2" aria-label="다음 곡">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg><span>다음</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </article>
+  <p class="deck-msg" id="deck-msg" role="status" hidden></p>
+  <label class="auto-next"><input type="checkbox" id="auto-next"> <span>곡이 끝나면 자동으로 다음 곡</span></label>
+  <p class="deck-help" id="deck-help">위로 밀면 다음 곡, 아래로 밀면 이전 곡</p>
+  <p class="deck-keys" aria-hidden="true"><kbd>휠↓</kbd><kbd>↓</kbd> 다음 곡 <kbd>휠↑</kbd><kbd>↑</kbd> 이전 곡 <kbd>S</kbd> 셔플 <kbd>M</kbd> 소리</p>
+
+  <section class="queue" aria-labelledby="queue-h">
+    <h2 id="queue-h">재생 목록 <span class="sub" id="queue-sub"></span></h2>
+    <ol class="queue-list" id="queue"></ol>
+  </section>
+  <script type="application/json" id="pl-data">{{ {"songs": songs, "order": order, "length": length} | tojson }}</script>
+  {% endif %}
+  <p class="booth-legal">음악은 YouTube 플레이어로 재생됩니다.</p>
+</section>
+{% endblock %}
+{% block scripts %}
+{% if songs %}
+<script src="{{ url_for('static', filename='js/playlist.js') }}"></script>
+<script src="https://www.youtube.com/iframe_api" async></script>
+{% endif %}
+{% endblock %}

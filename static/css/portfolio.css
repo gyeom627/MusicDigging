@@ -13,6 +13,9 @@
 .pf-block { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 16px; }
 .pf-block h2 { font-size: 17px; margin: 0 0 12px; }
 .pf-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.listen { display: flex; gap: 8px; margin-right: auto; margin-left: 8px; }
+.listen-btn { font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 999px; text-decoration: none; background: var(--brass); color: var(--on-brass); }
+.listen-btn + .listen-btn { background: var(--ink); color: var(--bg); }
 .sort { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; }
 .sort a { font-size: 13px; padding: 5px 12px; border-radius: 8px; color: var(--sub); text-decoration: none; }
 .sort a.is-on { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); font-weight: 500; }

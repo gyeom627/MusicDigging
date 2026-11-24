@@ -43,7 +43,9 @@ a { color: var(--accent); }
        background: var(--bg); border-bottom: 1px solid var(--line); }
 .logo { font-weight: 700; font-size: 20px; text-decoration: none; color: var(--ink); letter-spacing: -0.5px; }
 nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-nav a { text-decoration: none; color: var(--ink); }
+nav a { text-decoration: none; color: var(--sub); }
+nav a:hover { color: var(--ink); }
+nav a[aria-current="page"] { color: var(--ink); font-weight: 700; }
 .me { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 14px; }
 .tickets { background: var(--brass); color: var(--on-brass); padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
 .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;

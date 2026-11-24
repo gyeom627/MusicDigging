@@ -19,12 +19,11 @@
   <header class="top">
     <a class="logo" href="{{ url_for('index') }}">Digger</a>
     <nav>
-      <a href="{{ url_for('index') }}">디깅</a>
-      <a href="{{ url_for('portfolio') }}">포트폴리오</a>
-      <a href="{{ url_for('board') }}">게시판</a>
-      <a href="{{ url_for('ranking') }}">랭킹</a>
-      <a href="{{ url_for('submit') }}">곡 제보</a>
-      {% if g.user and g.user['role'] == 'ADMIN' %}<a href="{{ url_for('admin') }}">관리자</a>{% endif %}
+      {% set here = request.endpoint or '' %}
+      {% for ep, name in [('index', '디깅'), ('playlist', '플레이리스트'), ('portfolio', '포트폴리오'), ('board', '게시판'), ('ranking', '랭킹'), ('submit', '곡 제보')] %}
+        <a href="{{ url_for(ep) }}"{% if here == ep %} aria-current="page"{% endif %}>{{ name }}</a>
+      {% endfor %}
+      {% if g.user and g.user['role'] == 'ADMIN' %}<a href="{{ url_for('admin') }}"{% if here.startswith('admin') %} aria-current="page"{% endif %}>관리자</a>{% endif %}
     </nav>
     <div class="me">
       <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="다크 모드 켜기" title="다크 모드 켜기">

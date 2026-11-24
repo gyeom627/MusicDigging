@@ -14,6 +14,7 @@
     song: null,            // 지금 곡 (next 응답)
     phase: "loading",      // loading | listening | revealed | empty
     mode: store.get("digger.mode", "highlight"),   // highlight | intro
+    autoNext: store.get("digger.autonext", "1") === "1",  // 곡이 끝나면 다음 곡 (틀어 두고 작업할 때)
     category: store.get("digger.cat", "ALL"),
     activated: false,      // 사용자가 한 번이라도 누르면 소리를 켤 수 있음 (브라우저 자동재생 정책)
     busy: false,
@@ -526,8 +527,16 @@
         onError: (e) => onPlayerError(e.data),
         onStateChange: (e) => {
           if (e.data === YT.PlayerState.PLAYING) errorStreak = 0;  // 한 곡이라도 재생되면 정상
-          if (e.data === YT.PlayerState.ENDED && state.phase === "listening") {
-            say("곡이 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
+          if (e.data === YT.PlayerState.ENDED && (state.phase === "listening" || state.phase === "revealed")) {
+            if (state.autoNext) {
+              // 끝까지 들은 것은 '판단'이 아니므로 패스로 기록하지 않는다 → 나중에 디깅에서 다시 만날 수 있고,
+              // 아래로 밀면(이전 곡) 바로 돌아가 매수할 수도 있다
+              next({ skipPass: true }).then(() => {
+                if (state.phase === "listening") say("앞 곡이 끝나서 다음 곡으로 넘어왔어요. 아래로 밀면 앞 곡으로 돌아가요.");
+              });
+            } else if (state.phase === "listening") {
+              say("곡이 끝났어요. 마음에 들면 매수하고, 아니면 위로 밀어 넘기세요.");
+            }
           }
         },
       },
@@ -598,6 +607,11 @@
   $("btn-next").addEventListener("click", () => next());
   $("btn-buy").addEventListener("click", buy);
   $("btn-sound").addEventListener("click", activate);
+  $("auto-next").checked = state.autoNext;
+  $("auto-next").addEventListener("change", (e) => {
+    state.autoNext = e.target.checked;
+    store.set("digger.autonext", state.autoNext ? "1" : "0");
+  });
   $("btn-to-all").addEventListener("click", () => setCategory("ALL"));
   $("btn-reset").addEventListener("click", resetPasses);
   $("btn-unfilter").addEventListener("click", () => applyFilter({ moods: [], genres: [] }));

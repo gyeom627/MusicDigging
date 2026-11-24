@@ -33,6 +33,10 @@
     <div class="pf-row">
       <h2 id="songs-h">매수한 곡</h2>
       {% if songs %}
+      <div class="listen">
+        <a class="listen-btn" href="{{ url_for('playlist') }}">전체 듣기</a>
+        <a class="listen-btn" href="{{ url_for('playlist', order='shuffle') }}">셔플 듣기</a>
+      </div>
       <nav class="sort" aria-label="정렬">
         <a href="{{ url_for('portfolio') }}" class="{% if sort != 'points' %}is-on{% endif %}">최근 매수</a>
         <a href="{{ url_for('portfolio', sort='points') }}" class="{% if sort == 'points' %}is-on{% endif %}">포인트 높은 순</a>

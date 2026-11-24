@@ -2,7 +2,9 @@
 포트폴리오·디깅 포인트·뱃지 테스트 (설계 보고서 4.3, 4.4)
   python -m unittest discover tests -v
 """
+import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -101,6 +103,30 @@ class PointsTest(unittest.TestCase):
             s["user_id"] = user()
         page = c.get("/portfolio").get_data(as_text=True)
         self.assertIn("아직 매수한 곡이 없어요", page)
+        self.assertNotIn("iframe_api", page)
+
+    def test_playlist_page(self):
+        uid = user()
+        a, hidden = song(3), song(2, status="HIDDEN")
+        buy(uid, a, 1)
+        buy(uid, hidden, 0)
+        c = app.test_client()
+        self.assertEqual(c.get("/playlist").status_code, 302)
+        with c.session_transaction() as s:
+            s["user_id"] = uid
+        page = c.get("/playlist?order=shuffle").get_data(as_text=True)
+        data = json.loads(re.search(r'id="pl-data">(.*?)</script>', page, re.S).group(1))
+        self.assertEqual(len(data["songs"]), 1)              # 숨긴 곡은 재생 목록에서 빠짐
+        self.assertEqual(data["order"], "shuffle")
+        self.assertEqual(data["songs"][0]["rank"], 2)
+        self.assertIn("전체 듣기", c.get("/portfolio").get_data(as_text=True))
+
+    def test_playlist_empty(self):
+        c = app.test_client()
+        with c.session_transaction() as s:
+            s["user_id"] = user()
+        page = c.get("/playlist").get_data(as_text=True)
+        self.assertIn("아직 들을 곡이 없어요", page)
         self.assertNotIn("iframe_api", page)
 
 
